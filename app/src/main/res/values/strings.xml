@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">BanaVision</string>
+    <string name="camera">Camera</string>
+    <string name="upload">Choose Image</string>
+    <string name="icn_camera_view_switch_camera_content_description">Switch camera</string>
+    <string name="icn_camera_view_camera_shutter_content_description">Camera shooter</string>
+    <string name="icn_camera_view_view_gallery_content_description">Gallery</string>
+</resources>
