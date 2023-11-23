@@ -83,7 +83,7 @@ fun CameraScreen(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            viewModel.chooseImageFromGallery(uri)
+            viewModel.chooseImageFromGallery(uri, context)
         }
     }
 
