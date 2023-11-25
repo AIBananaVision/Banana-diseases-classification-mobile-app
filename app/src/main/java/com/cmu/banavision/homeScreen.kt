@@ -152,15 +152,6 @@ fun HomeScreen() {
             contentAlignment = Alignment.TopCenter
 
         ) {
-            Text(
-                text = "Welcome to BanaVision",
-                style = TextStyle(
-                    fontSize = 24.sp,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Bold,
-                ),
-                modifier = Modifier.padding(start = 0.dp)
-            )
             //Show Camera screen
             CameraScreen(
                 cameraController = controller,

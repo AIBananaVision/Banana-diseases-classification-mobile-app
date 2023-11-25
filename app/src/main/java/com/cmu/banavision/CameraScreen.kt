@@ -23,6 +23,7 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.sharp.Lens
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -70,7 +71,7 @@ fun CameraScreen(
     cameraController: LifecycleCameraController,
     permissionGranted: Boolean = rememberSaveable { false },
     expandBottomSheet: () -> Unit,
-    showMessage : (String) -> Unit,
+    showMessage: (String) -> Unit,
     returnUris: (List<Uri?>) -> Unit
 ) {
     val spacing = LocalSpacing.current
@@ -115,11 +116,15 @@ fun CameraScreen(
             }
         }
     }
-    LaunchedEffect(key1 = soilPropertiesState, block ={
+    LaunchedEffect(key1 = soilPropertiesState, block = {
         print("Soil properties state is $soilPropertiesState")
-        message = message + "Soil properties state is $soilPropertiesState"
+        if (soilPropertiesState?.error?.isNotBlank() == true) {
+            message = message + "Soil properties state is ${soilPropertiesState?.error}"
+            showMessage(message)
+        }
+        message = message + "Soil properties state is ${soilPropertiesState?.soilPropertState}"
         showMessage(message)
-    } )
+    })
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -168,25 +173,31 @@ fun CameraScreen(
             }
         }
         returnUris(state.uris)
-
-        LazyColumn(
-            modifier = Modifier
-                .height(screeHeight * 0.45f)
-                .width(screenWidth)
-        ) {
-            items(state.uris.distinct()) { uri ->
-                ImagePrevew(
-                    uri = uri,
-                    modifier = Modifier
-                        .padding(spacing.spaceSmall)
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.tertiary)
-                        .clip(RoundedCornerShape(spacing.spaceLarge)),
-                    context = context,
-                    viewModel = viewModel
-                )
+        if (state.uris.isEmpty()) {
+            Text(
+                text = "No images yet",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .height(screeHeight * 0.45f)
+                    .width(screenWidth)
+            ) {
+                items(state.uris.distinct()) { uri ->
+                    ImagePrevew(
+                        uri = uri,
+                        modifier = Modifier
+                            .padding(spacing.spaceSmall)
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.tertiary)
+                            .clip(RoundedCornerShape(spacing.spaceLarge)),
+                        context = context,
+                        viewModel = viewModel
+                    )
+                }
             }
-
         }
 
 
@@ -247,9 +258,29 @@ fun CameraScreen(
             }
 
         }
-
+        if (soilPropertiesState?.isLoading == true) {
+            // Show loading indicator
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .padding(spacing.spaceSmall)
+                    .size(20.dp)
+            ) {
+                CircularProgressIndicator(
+                    color = MaterialTheme.colorScheme.primary,
+                    strokeWidth = 2.dp
+                )
+                Text(
+                    text = "Loading...",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+            }
+        }
     }
+
 }
+
 
 @Composable
 fun ImagePrevew(
