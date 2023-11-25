@@ -38,6 +38,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -83,9 +84,12 @@ fun CameraScreen(
     val screenWidth = configuration.screenWidthDp.dp
     var previewView: PreviewView
 
-
+    var message by remember {
+        mutableStateOf("")
+    }
     val state by viewModel.imageUris.collectAsStateWithLifecycle()
     val locationState by viewModel.locationState.collectAsStateWithLifecycle()
+    val soilPropertiesState by soilViewModel.soilProperties.collectAsStateWithLifecycle()
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -97,7 +101,8 @@ fun CameraScreen(
     // Observe locationState
     LaunchedEffect(locationState) {
         print("Location state is $locationState")
-        showMessage("Location state is $locationState")
+        message = message + "Location state is $locationState"
+        showMessage(message)
         locationState.longitude?.let {
             locationState.latitude?.let { it1 ->
                 soilViewModel.getSoilProperties(
@@ -110,6 +115,11 @@ fun CameraScreen(
             }
         }
     }
+    LaunchedEffect(key1 = soilPropertiesState, block ={
+        print("Soil properties state is $soilPropertiesState")
+        message = message + "Soil properties state is $soilPropertiesState"
+        showMessage(message)
+    } )
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,

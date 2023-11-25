@@ -1,20 +1,19 @@
 package com.cmu.banavision
-
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cmu.banavision.network.SoilResponse
 import com.cmu.banavision.network.SoilService
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class SoilViewModel @Inject constructor(private val soilService: SoilService) : ViewModel() {
 
-    private val _soilProperties = MutableLiveData<SoilResponse>()
-    val soilProperties: LiveData<SoilResponse> get() = _soilProperties
+    private val _soilProperties = MutableStateFlow<SoilResponse?>(null)
+    val soilProperties: StateFlow<SoilResponse?> get() = _soilProperties
 
     fun getSoilProperties(longitude: Double, latitude: Double, properties: List<String>, depth: String, values: List<String>) {
         viewModelScope.launch {
