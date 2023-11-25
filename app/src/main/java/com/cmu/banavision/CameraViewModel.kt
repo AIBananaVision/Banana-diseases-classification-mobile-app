@@ -33,9 +33,8 @@ class CameraViewModel @Inject constructor(
 ) : ViewModel() {
     // declare context
 
-
-    private val _imageUri = MutableStateFlow(ImageState())
-    val imageUri = _imageUri.asStateFlow()
+    private val _imageUris = MutableStateFlow(ImagesState())
+    val imageUris = _imageUris.asStateFlow()
     private val _locationState = MutableStateFlow(LocationState())
     val locationState = _locationState.asStateFlow()
 
@@ -50,37 +49,37 @@ class CameraViewModel @Inject constructor(
             )
         }
     }
-    fun deleteImage(){
+    fun deleteImage(uri: Uri){
         viewModelScope.launch {
-            _imageUri.update { imageState ->
+            _imageUris.update { imageState ->
                 imageState.copy(
-                    uri = null
+                    uris = imageState.uris - uri
                 )
             }
         }
     }
 
-    fun captureAndSave(context: Context) {
-        viewModelScope.launch {
-            pictureUseCase.captureAndSaveImageUseCase.captureAndSaveImage(context).apply {
-                ImageCaptureSingleton.imageUri.collectLatest {
-                    _imageUri.update { imageState ->
-                        imageState.copy(
-                            uri = it.uri
-                        )
-                    }
-                    getLocation(context)
+fun captureAndSave(context: Context) {
+    viewModelScope.launch {
+        pictureUseCase.captureAndSaveImageUseCase.captureAndSaveImage(context).apply {
+            ImageCaptureSingleton.imageUri.collectLatest {
+                _imageUris.update { imageState ->
+                    imageState.copy(
+                        uris = imageState.uris + it.uri
+                    )
                 }
+                print("Image uri: ${it.uri}")
+                getLocation(context)
             }
-
         }
     }
+}
 
     fun chooseImageFromGallery(uri: Uri, context: Context) {
         viewModelScope.launch {
-            _imageUri.update { imageState ->
+            _imageUris.update { imageState ->
                 imageState.copy(
-                    uri = uri
+                    uris = imageState.uris + uri
                 )
             }
             getLocation(context)

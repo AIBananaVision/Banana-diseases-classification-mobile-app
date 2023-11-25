@@ -7,6 +7,8 @@ import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
+import com.cmu.banavision.network.RetrofitClient
+import com.cmu.banavision.network.SoilService
 import com.cmu.banavision.repository.CustomCameraRepo
 import com.cmu.banavision.repository.CustomCameraRepoImpl
 import com.urutare.kategora.domain.usecase.CaptureAndSaveImage
@@ -21,6 +23,11 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 class AppModule {
 
+    @Provides
+    @Singleton
+    fun provideSoilService(): SoilService {
+        return RetrofitClient.soilService
+    }
 
     @Provides
     @Singleton

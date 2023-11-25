@@ -12,6 +12,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -24,8 +26,12 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
@@ -50,26 +56,26 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
+import com.cmu.banavision.common.UiText
 import com.cmu.banavision.ui.theme.LocalSpacing
 import com.cmu.banavision.util.getImageNameFromUri
 import com.cmu.banavision.util.getImageSize
 
 
-
 @Composable
 fun CameraScreen(
     viewModel: CameraViewModel = hiltViewModel(),
-    deleteImage: MutableState<Boolean> = rememberSaveable { mutableStateOf(false) },
+    soilViewModel: SoilViewModel = hiltViewModel(),
     cameraController: LifecycleCameraController,
     permissionGranted: Boolean = rememberSaveable { false },
     expandBottomSheet: () -> Unit,
-    returnUri: (Uri?) -> Unit
+    showMessage : (String) -> Unit,
+    returnUris: (List<Uri?>) -> Unit
 ) {
     val spacing = LocalSpacing.current
     val showCamera = remember {
         mutableStateOf(false)
     }
-
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val configuration = LocalConfiguration.current
@@ -77,8 +83,9 @@ fun CameraScreen(
     val screenWidth = configuration.screenWidthDp.dp
     var previewView: PreviewView
 
-    val state by viewModel.imageUri.collectAsStateWithLifecycle()
 
+    val state by viewModel.imageUris.collectAsStateWithLifecycle()
+    val locationState by viewModel.locationState.collectAsStateWithLifecycle()
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -87,10 +94,20 @@ fun CameraScreen(
         }
     }
 
-    LaunchedEffect(deleteImage.value) {
-        if (deleteImage.value) {
-            println("Delete image is called")
-            viewModel.deleteImage()
+    // Observe locationState
+    LaunchedEffect(locationState) {
+        print("Location state is $locationState")
+        showMessage("Location state is $locationState")
+        locationState.longitude?.let {
+            locationState.latitude?.let { it1 ->
+                soilViewModel.getSoilProperties(
+                    longitude = it,
+                    latitude = it1,
+                    properties = listOf("clay", "sand"),
+                    depth = "0-5cm",
+                    values = listOf("mean", "uncertainty")
+                )
+            }
         }
     }
 
@@ -140,108 +157,29 @@ fun CameraScreen(
                 }
             }
         }
-        if (state.uri != null) {
-            returnUri(state.uri)
-            val painter = rememberAsyncImagePainter(
-                ImageRequest
-                    .Builder(LocalContext.current)
-                    .data(data = state.uri)
-                    .build()
-            )
-            Row(
-                modifier = Modifier
-                    .padding(spacing.spaceSmall)
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.tertiary)
-                    .clip(RoundedCornerShape(spacing.spaceLarge)),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Spacer(modifier = Modifier.width(spacing.spaceExtraSmall))
-                Card(
-                    modifier = Modifier
-                        .padding(spacing.spaceExtraSmall)
-                        .clickable(onClick = { /* Handle image click */ }),
-                    shape = RoundedCornerShape(spacing.spaceExtraSmall),
-                    elevation = CardDefaults.cardElevation(
-                        defaultElevation = 4.dp,
-                        pressedElevation = 8.dp,
-                        focusedElevation = 8.dp,
-                        hoveredElevation = 8.dp,
-                        draggedElevation = 8.dp,
-                        disabledElevation = 0.dp
-                    )
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .width(80.dp)
-                            .height(60.dp)
-                            .clip(RoundedCornerShape(spacing.spaceExtraSmall))
-                    ) {
-                        Image(
-                            painter = painter,
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    }
-                }
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .padding(spacing.spaceSmall)
-                            .width(120.dp)
-                    ) {
-                        getImageNameFromUri(state.uri!!)?.let {
-                            Text(
-                                text = it,
-                                maxLines = 1,
-                                style = MaterialTheme.typography.bodyMedium,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                    Box(
-                        modifier = Modifier
-                            .padding(spacing.spaceSmall)
-                            .width(120.dp)
-                    ) {
-                        Text(
-                            text = getImageSize(context.contentResolver, state.uri!!),
-                            maxLines = 1,
-                            style = MaterialTheme.typography.bodySmall,
-                            overflow = TextOverflow.Ellipsis,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                    }
-                }
+        returnUris(state.uris)
 
-
-                Box(
+        LazyColumn(
+            modifier = Modifier
+                .height(screeHeight * 0.45f)
+                .width(screenWidth)
+        ) {
+            items(state.uris.distinct()) { uri ->
+                ImagePrevew(
+                    uri = uri,
                     modifier = Modifier
-                        .size(spacing.spaceExtraLarge)
-                        .background(MaterialTheme.colorScheme.error, shape = CircleShape)
-                        .padding(spacing.spaceSmall),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    IconButton(onClick = {
-                        viewModel.deleteImage()
-                    }) {
-                        Icon(
-                            Icons.Rounded.Delete,
-                            contentDescription = "Delete",
-                            tint = Color.White
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.width(spacing.spaceExtraSmall))
+                        .padding(spacing.spaceSmall)
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.tertiary)
+                        .clip(RoundedCornerShape(spacing.spaceLarge)),
+                    context = context,
+                    viewModel = viewModel
+                )
             }
 
-
         }
+
+
         Box(
             modifier = Modifier
                 .height(screeHeight * 0.15f),
@@ -304,6 +242,113 @@ fun CameraScreen(
 }
 
 @Composable
+fun ImagePrevew(
+    uri: Uri?,
+    modifier: Modifier = Modifier,
+    context: android.content.Context,
+    viewModel: CameraViewModel,
+) {
+    val spacing = LocalSpacing.current
+    if (uri != null) {
+        val painter = rememberAsyncImagePainter(
+            ImageRequest
+                .Builder(LocalContext.current)
+                .data(data = uri)
+                .build()
+        )
+        Row(
+            modifier = modifier,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Spacer(modifier = Modifier.width(spacing.spaceExtraSmall))
+            Card(
+                modifier = Modifier
+                    .padding(spacing.spaceExtraSmall)
+                    .clickable(onClick = { /* Handle image click */ }),
+                shape = RoundedCornerShape(spacing.spaceExtraSmall),
+                elevation = CardDefaults.cardElevation(
+                    defaultElevation = 4.dp,
+                    pressedElevation = 8.dp,
+                    focusedElevation = 8.dp,
+                    hoveredElevation = 8.dp,
+                    draggedElevation = 8.dp,
+                    disabledElevation = 0.dp
+                )
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(80.dp)
+                        .height(60.dp)
+                        .clip(RoundedCornerShape(spacing.spaceExtraSmall))
+                ) {
+                    Image(
+                        painter = painter,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+            }
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .padding(spacing.spaceSmall)
+                        .width(120.dp)
+                ) {
+                    getImageNameFromUri(uri)?.let {
+                        Text(
+                            text = it,
+                            maxLines = 1,
+                            style = MaterialTheme.typography.bodyMedium,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .padding(spacing.spaceSmall)
+                        .width(120.dp)
+                ) {
+                    Text(
+                        text = getImageSize(context.contentResolver, uri),
+                        maxLines = 1,
+                        style = MaterialTheme.typography.bodySmall,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+            }
+
+
+            Box(
+                modifier = Modifier
+                    .size(spacing.spaceExtraLarge)
+                    .background(MaterialTheme.colorScheme.error, shape = CircleShape)
+                    .padding(spacing.spaceSmall),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                IconButton(onClick = {
+                    viewModel.deleteImage(uri)
+                }) {
+                    Icon(
+                        Icons.Rounded.Delete,
+                        contentDescription = "Delete",
+                        tint = Color.White
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(spacing.spaceExtraSmall))
+        }
+
+
+    }
+}
+
+@Composable
 fun CameraControl(
     imageVector: ImageVector,
     contentDescId: Int,
@@ -311,7 +356,7 @@ fun CameraControl(
     cameraController: LifecycleCameraController,
     onClick: () -> Unit
 ) {
-    val spacing = LocalSpacing.current
+
     Row(
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically

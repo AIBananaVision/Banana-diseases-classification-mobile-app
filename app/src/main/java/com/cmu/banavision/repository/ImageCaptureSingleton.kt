@@ -2,13 +2,14 @@ package com.cmu.banavision.repository
 
 import android.net.Uri
 import androidx.camera.core.ImageCaptureException
-import com.cmu.banavision.ImageState
+import com.cmu.banavision.ImagesState
+import com.cmu.banavision.SingleImageState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
 object ImageCaptureSingleton {
-    private val imageUriState = MutableStateFlow(ImageState())
+    private val imageUriState = MutableStateFlow(SingleImageState())
     val imageUri = imageUriState.asStateFlow()
 
     fun setOnError(onError: (ImageCaptureException)) {
