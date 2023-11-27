@@ -1,25 +1,19 @@
-package com.urutare.kategora.domain.usecase
+package com.cmu.banavision.usecases
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.net.Uri
-import androidx.camera.view.PreviewView
-import androidx.lifecycle.LifecycleOwner
 import com.cmu.banavision.repository.CustomCameraRepo
 import javax.inject.Inject
 
 class CaptureAndSaveImage @Inject constructor(
     private val repository: CustomCameraRepo
 ) {
-    suspend  fun captureAndSaveImage(context: Context) {
-        return repository.captureAndSaveImage(context)
+
+  fun bitmapToUri(context: Context, it: Bitmap): Uri {
+        return repository.bitmapToUri(context, it)
     }
-    suspend fun showCameraPreview(
-        previewView: PreviewView,
-        lifecycleOwner: LifecycleOwner
-    ){
-        repository.showCameraPreview(
-            previewView,
-            lifecycleOwner
-        )
+    fun deleteImage(context: Context, uri: Uri):Boolean{
+        return repository.deleteFile(uri = uri, context = context)
     }
 }

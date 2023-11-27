@@ -3,23 +3,20 @@ package com.cmu.banavision
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.location.Geocoder
 import android.net.Uri
 import android.widget.Toast
-import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
-import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.cmu.banavision.repository.ImageCaptureSingleton
+import com.cmu.banavision.usecases.PictureUseCase
 import com.cmu.banavision.util.LocationState
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
-import com.urutare.kategora.domain.usecase.PictureUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -30,7 +27,7 @@ import javax.inject.Inject
 class CameraViewModel @Inject constructor(
     private val pictureUseCase: PictureUseCase,
 
-) : ViewModel() {
+    ) : ViewModel() {
     // declare context
 
     private val _imageUris = MutableStateFlow(ImagesState())
@@ -38,42 +35,32 @@ class CameraViewModel @Inject constructor(
     private val _locationState = MutableStateFlow(LocationState())
     val locationState = _locationState.asStateFlow()
 
-    fun showCameraPreview(
-        previewView: PreviewView,
-        lifecycleOwner: LifecycleOwner
-    ) {
-        viewModelScope.launch {
-            pictureUseCase.captureAndSaveImageUseCase.showCameraPreview(
-                previewView,
-                lifecycleOwner
-            )
-        }
-    }
-    fun deleteImage(uri: Uri){
+    fun deleteImage(uri: Uri,context: Context){
         viewModelScope.launch {
             _imageUris.update { imageState ->
                 imageState.copy(
                     uris = imageState.uris - uri
                 )
             }
-        }
-    }
-
-fun captureAndSave(context: Context) {
-    viewModelScope.launch {
-        pictureUseCase.captureAndSaveImageUseCase.captureAndSaveImage(context).apply {
-            ImageCaptureSingleton.imageUri.collectLatest {
-                _imageUris.update { imageState ->
-                    imageState.copy(
-                        uris = imageState.uris + it.uri
-                    )
-                }
-                print("Image uri: ${it.uri}")
-                getLocation(context)
+           val deletedImage= pictureUseCase.captureAndSaveImageUseCase.deleteImage(context,uri)
+            if(deletedImage){
+                print("Image deleted")
             }
         }
+
     }
-}
+
+    fun onTakePhoto(uri: Uri, context: Context) {
+        viewModelScope.launch {
+            // convert bitmap to uri
+            _imageUris.update { imageState ->
+                imageState.copy(
+                    uris = imageState.uris + uri
+                )
+            }
+            getLocation(context)
+        }
+    }
 
     fun chooseImageFromGallery(uri: Uri, context: Context) {
         viewModelScope.launch {
@@ -119,4 +106,18 @@ fun captureAndSave(context: Context) {
             }
         }
     }
+
+   fun bitmapToUri(context: Context, it: Bitmap): Uri {
+           return pictureUseCase.captureAndSaveImageUseCase.bitmapToUri(context, it)
+    }
+
+     fun clearImageUris() {
+         viewModelScope.launch {
+             _imageUris.update { imageState ->
+                 imageState.copy(
+                     uris = emptyList()
+                 )
+             }
+         }
+     }
 }

@@ -1,99 +1,86 @@
 package com.cmu.banavision.repository
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.net.Uri
-import android.util.Log
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.ImageAnalysis
-import androidx.camera.core.ImageCapture
-import androidx.camera.core.ImageCaptureException
-import androidx.camera.core.Preview
-import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.view.PreviewView
-import androidx.lifecycle.LifecycleOwner
+import android.provider.MediaStore
+import androidx.core.content.FileProvider
 import com.cmu.banavision.R
 import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Locale
-import java.util.concurrent.Executor
-import java.util.concurrent.Executors
-import javax.inject.Inject
 
-class CustomCameraRepoImpl @Inject constructor(
-    private val cameraProvider: ProcessCameraProvider,
-    private val selector: CameraSelector,
-    private val preview: Preview,
-    private val imageAnalysis: ImageAnalysis,
-    private val imageCapture: ImageCapture
-) : CustomCameraRepo {
-    override suspend fun captureAndSaveImage(context: Context) {
+class CustomCameraRepoImpl: CustomCameraRepo {
 
+    override fun bitmapToUri(context: Context, bitmap: Bitmap): Uri {
         val outputDirectory = context.getOutputDirectory()
-
-        takePhoto(
-            filenameFormat = "yyyy-MM-dd-HH-mm-ss-SSS",
-            imageCapture = imageCapture,
-            outputDirectory = outputDirectory,
-            executor = Executors.newSingleThreadExecutor(),
-            onImageCaptured = {uri ->
-                ImageCaptureSingleton.notifySelectedUri(uri)
-            },
-            onError = {
-                ImageCaptureSingleton.setOnError(it)
-            }
-        )
-
-
-    }
-
-    override suspend fun showCameraPreview(
-        previewView: PreviewView,
-        lifecycleOwner: LifecycleOwner
-    ) {
-
-        preview.setSurfaceProvider(previewView.surfaceProvider)
-        try {
-            cameraProvider.unbindAll()
-            cameraProvider.bindToLifecycle(
-                lifecycleOwner,
-                selector,
-                preview,
-                imageAnalysis,
-                imageCapture
-            )
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    private fun takePhoto(
-        filenameFormat: String,
-        imageCapture: ImageCapture,
-        outputDirectory: File,
-        executor: Executor,
-        onImageCaptured: (Uri?) -> Unit,
-        onError: (ImageCaptureException) -> Unit
-    ) {
-
         val photoFile = File(
             outputDirectory,
-            SimpleDateFormat(filenameFormat, Locale.US).format(System.currentTimeMillis()) + ".jpg"
+            SimpleDateFormat(
+                "yyyy-MM-dd-HH-mm-ss-SSS",
+                Locale.US
+            ).format(System.currentTimeMillis()) + ".jpg"
         )
 
-        val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
-
-        imageCapture.takePicture(outputOptions, executor, object: ImageCapture.OnImageSavedCallback {
-            override fun onError(exception: ImageCaptureException) {
-                Log.e("Kategora", "Take photo error:", exception)
-                onError(exception)
+        // Save the Bitmap to the photoFile
+        try {
+            FileOutputStream(photoFile).use { outputStream ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
             }
+        } catch (e: IOException) {
+            e.printStackTrace()
+            // Handle the exception appropriately based on your app's requirements
+        }
 
-            override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
-                val savedUri = Uri.fromFile(photoFile)
-                onImageCaptured(savedUri)
-            }
-        })
+        // Obtain a Uri for the saved photoFile using FileProvider
+        return FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.provider",
+            photoFile
+        )
     }
+    override fun deleteFile(context: Context, uri: Uri): Boolean {
+        val filePath = getRealPathFromUri(context, uri)
+        if (filePath != null) {
+            val file = File(filePath)
+            if (file.exists()) {
+                return file.delete()
+            }
+        }
+        return false
+    }
+
+    private fun getRealPathFromUri(context: Context, uri: Uri): String? {
+        // Check if the Uri scheme is "file"
+        if (uri.scheme == "file") {
+            return uri.path
+        }
+
+        // Check if the Uri scheme is "content"
+        if (uri.scheme == "content") {
+            val projection = arrayOf(MediaStore.Images.Media.DATA)
+
+            context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val columnIndex = cursor.getColumnIndex(MediaStore.Images.Media.DATA)
+                    if (columnIndex != -1) {
+                        // Column '_data' exists
+                        return cursor.getString(columnIndex)
+                    } else {
+                      print(" Not found!")
+                    }
+                }
+            }
+        }
+
+        return null
+    }
+
+
+
+
 
     private fun Context.getOutputDirectory(): File {
         val mediaDir = this.externalCacheDir?.let {

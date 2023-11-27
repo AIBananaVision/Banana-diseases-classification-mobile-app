@@ -131,7 +131,7 @@ fun HomeScreen() {
                 ) {
 
                     Text(
-                        text = "BanaVision",
+                        text = "BananaVision",
                         style = TextStyle(
                             fontSize = 24.sp,
                             color = MaterialTheme.colorScheme.onSurface,
@@ -166,10 +166,7 @@ fun HomeScreen() {
 
                 ) {
 
-                if (it != null) {
-
-                    print("Image uris are $it")
-                }
+                print("Image uris are $it")
 
             }
         }

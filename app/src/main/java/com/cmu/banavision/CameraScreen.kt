@@ -1,10 +1,16 @@
 package com.cmu.banavision
 
+import android.graphics.Bitmap
+import android.graphics.Matrix
 import android.net.Uri
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.ImageProxy
 import androidx.camera.view.LifecycleCameraController
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Image
@@ -54,14 +60,17 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import com.cmu.banavision.common.UiText
 import com.cmu.banavision.ui.theme.LocalSpacing
 import com.cmu.banavision.util.getImageNameFromUri
 import com.cmu.banavision.util.getImageSize
+import kotlinx.coroutines.launch
 
 
 @Composable
@@ -79,11 +88,11 @@ fun CameraScreen(
         mutableStateOf(false)
     }
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
+    //val lifecycleOwner = LocalLifecycleOwner.current
     val configuration = LocalConfiguration.current
     val screeHeight = configuration.screenHeightDp.dp
     val screenWidth = configuration.screenWidthDp.dp
-    var previewView: PreviewView
+   // var previewView: PreviewView
 
     var message by remember {
         mutableStateOf("")
@@ -137,15 +146,10 @@ fun CameraScreen(
                         .height(screeHeight * 0.85f)
                         .width(screenWidth)
                 ) {
-                    AndroidView(
-                        factory = {
-                            previewView = PreviewView(it)
-                            viewModel.showCameraPreview(previewView, lifecycleOwner)
-                            previewView
-                        },
-                        modifier = Modifier
-                            .height(screeHeight * 0.85f)
-                            .width(screenWidth)
+                    CameraPreview(
+                        controller = cameraController,
+                        modifier =  Modifier
+                            .fillMaxSize()
                     )
                     Column(
                         modifier = Modifier
@@ -163,8 +167,17 @@ fun CameraScreen(
                                 .border(1.dp, Color.White, CircleShape),
                             cameraController = cameraController,
                             onClick = {
-                                viewModel.captureAndSave(context)
-                                showCamera.value = false
+                                takePhoto(
+                                    controller = cameraController,
+                                    context = context,
+                                    onPhotoTaken = {
+                                        viewModel.onTakePhoto(
+                                            uri = viewModel.bitmapToUri(context, it),
+                                            context = context
+                                        )
+                                        showCamera.value = false
+                                    }
+                                )
                             }
                         )
                     }
@@ -373,7 +386,7 @@ fun ImagePrevew(
                 contentAlignment = Alignment.CenterStart
             ) {
                 IconButton(onClick = {
-                    viewModel.deleteImage(uri)
+                    viewModel.deleteImage(uri=uri,context=context)
                 }) {
                     Icon(
                         Icons.Rounded.Delete,
@@ -387,6 +400,41 @@ fun ImagePrevew(
 
 
     }
+}
+
+private fun takePhoto(
+    controller: LifecycleCameraController,
+    context: android.content.Context,
+    onPhotoTaken: (Bitmap) -> Unit
+) {
+    controller.takePicture(
+        ContextCompat.getMainExecutor(context),
+        object : ImageCapture.OnImageCapturedCallback() {
+            override fun onCaptureSuccess(image: ImageProxy) {
+                super.onCaptureSuccess(image)
+
+                val matrix = Matrix().apply {
+                    postRotate(image.imageInfo.rotationDegrees.toFloat())
+                }
+                val rotatedBitmap = Bitmap.createBitmap(
+                    image.toBitmap(),
+                    0,
+                    0,
+                    image.width,
+                    image.height,
+                    matrix,
+                    true
+                )
+
+                onPhotoTaken(rotatedBitmap)
+            }
+
+            override fun onError(exception: ImageCaptureException) {
+                super.onError(exception)
+                Log.e("Camera", "Couldn't take photo: ", exception)
+            }
+        }
+    )
 }
 
 @Composable
@@ -406,11 +454,10 @@ fun CameraControl(
         IconButton(
             onClick = {
                 // Switch camera logic
-                if (cameraController.cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) {
-                    cameraController.cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
-                } else {
-                    cameraController.cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-                }
+                cameraController.cameraSelector =
+                    if (cameraController.cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) {
+                        CameraSelector.DEFAULT_FRONT_CAMERA
+                    } else CameraSelector.DEFAULT_BACK_CAMERA
             },
             modifier = Modifier
                 .padding(16.dp)
