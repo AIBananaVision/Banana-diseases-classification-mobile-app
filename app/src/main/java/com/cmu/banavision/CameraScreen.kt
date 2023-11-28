@@ -36,9 +36,11 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -62,6 +64,7 @@ import com.cmu.banavision.common.UiText
 import com.cmu.banavision.ui.theme.LocalSpacing
 import com.cmu.banavision.util.getImageNameFromUri
 import com.cmu.banavision.util.getImageSize
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
 
@@ -72,7 +75,7 @@ fun CameraScreen(
     cameraController: LifecycleCameraController,
     permissionGranted: Boolean = rememberSaveable { false },
     expandBottomSheet: () -> Unit,
-    showSnackbar: (UiText) -> SnackbarResult,
+    showSnackbar: (UiText) -> MutableStateFlow<SnackbarResult?>,
     showMessage: (String) -> Unit,
     returnUris: (List<Uri?>) -> Unit
 ) {
@@ -85,7 +88,7 @@ fun CameraScreen(
     val configuration = LocalConfiguration.current
     val screeHeight = configuration.screenHeightDp.dp
     val screenWidth = configuration.screenWidthDp.dp
-   // var previewView: PreviewView
+    // var previewView: PreviewView
 
     var message by remember {
         mutableStateOf("")
@@ -94,15 +97,34 @@ fun CameraScreen(
     val locationState by viewModel.locationState.collectAsStateWithLifecycle()
     val soilPropertiesState by soilViewModel.soilProperties.collectAsStateWithLifecycle()
     val deleleteImageState by viewModel.pendingDeleteImage.collectAsStateWithLifecycle()
+    val viewModelScope = rememberCoroutineScope()
     LaunchedEffect(key1 = deleleteImageState) {
         if (deleleteImageState != null) {
-            showSnackbar(UiText.DynamicString("Image will be deleted in 5 seconds. Tap to undo.")).also {
-                if (it == SnackbarResult.ActionPerformed) {
-                    viewModel.undoDeleteImage(deleleteImageState!!)
+            val snackbarResultStateFlow = showSnackbar(UiText.DynamicString("Image will be deleted in 5 seconds. Tap to undo."))
+
+            // Use a CoroutineScope to launch a coroutine for collecting the StateFlow
+            viewModelScope.launch {
+                snackbarResultStateFlow.collect { snackbarResult ->
+                    Log.i("CameraScreen", "SnackbarResult is $snackbarResult")
+                    when (snackbarResult) {
+                        SnackbarResult.ActionPerformed -> {
+                            Log.d("CameraScreen", "Undo clicked")
+                            viewModel.undoDeleteImage(deleleteImageState!!)
+                        }
+
+                        SnackbarResult.Dismissed -> {
+                            Log.d("CameraScreen", "Snackbar dismissed")
+                        }
+
+                        else -> {
+                            Log.d("CameraScreen", "Snackbar dismissed")
+                        }
+                    }
                 }
             }
         }
     }
+
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -151,7 +173,7 @@ fun CameraScreen(
                 ) {
                     CameraPreview(
                         controller = cameraController,
-                        modifier =  Modifier
+                        modifier = Modifier
                             .fillMaxSize()
                     )
                     Column(
@@ -389,7 +411,7 @@ fun ImagePrevew(
                 contentAlignment = Alignment.CenterStart
             ) {
                 IconButton(onClick = {
-                    viewModel.deleteImage(uri=uri,context=context)
+                    viewModel.deleteImage(uri = uri, context = context)
                 }) {
                     Icon(
                         Icons.Rounded.Delete,

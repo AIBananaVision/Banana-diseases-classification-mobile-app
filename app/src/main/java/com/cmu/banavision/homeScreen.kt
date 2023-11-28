@@ -3,6 +3,7 @@ package com.cmu.banavision
 import android.Manifest
 import android.net.Uri
 import android.os.Build
+import android.util.Log
 import androidx.camera.view.CameraController
 import androidx.camera.view.LifecycleCameraController
 import androidx.compose.foundation.Image
@@ -47,7 +48,9 @@ import com.cmu.banavision.common.UiText
 import com.cmu.banavision.ui.theme.LocalSpacing
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlin.time.ExperimentalTime
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
@@ -75,32 +78,20 @@ fun HomeScreen() {
         permissions = permissions
     )
     val scaffoldState = rememberScaffoldState()
-    val showSnackBar: (UiText) -> SnackbarResult = { uiText ->
-        val resultState = mutableStateOf<SnackbarResult?>(null)
+    val showSnackBar: (UiText) -> MutableStateFlow<SnackbarResult?> = { uiText ->
+        val resultState = MutableStateFlow<SnackbarResult?>(null)
         coroutineScope.launch {
+            // 5 seconds show
             resultState.value = snackbarHostState
                 .showSnackbar(
                     message = uiText.asString(context),
                     actionLabel = "Ok",
-                    duration = SnackbarDuration.Indefinite
+                    duration = SnackbarDuration.Indefinite,
                 )
+            Log.i("Snackbar", "Snackbar result is ${resultState.value}")
 
-            when (resultState.value) {
-                SnackbarResult.ActionPerformed -> {
-                    print("Snackbar action performed")
-                }
-
-                SnackbarResult.Dismissed -> {
-                    print("Snackbar dismissed")
-                }
-
-                else -> {
-                    print("Snackbar unknown")
-                }
-            }
         }
-        resultState.value
-            ?: SnackbarResult.Dismissed.also { resultState.value = it }
+        resultState
     }
 
     LaunchedEffect(Unit) {
