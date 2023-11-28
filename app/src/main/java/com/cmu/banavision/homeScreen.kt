@@ -21,8 +21,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -30,6 +32,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -44,6 +47,7 @@ import com.cmu.banavision.common.UiText
 import com.cmu.banavision.ui.theme.LocalSpacing
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
@@ -58,6 +62,8 @@ fun HomeScreen() {
         mutableStateOf<UiText?>(null)
     }
 
+    val coroutineScope = rememberCoroutineScope()
+
     val permissions = if (Build.VERSION.SDK_INT <= 28) {
         listOf(
             Manifest.permission.CAMERA,
@@ -69,6 +75,40 @@ fun HomeScreen() {
         permissions = permissions
     )
     val scaffoldState = rememberScaffoldState()
+    val showSnackBar: (UiText) -> SnackbarResult = { uiText ->
+        val resultState = mutableStateOf<SnackbarResult?>(null)
+        coroutineScope.launch {
+            resultState.value = snackbarHostState
+                .showSnackbar(
+                    message = uiText.asString(context),
+                    actionLabel = "Ok",
+                    duration = SnackbarDuration.Indefinite
+                )
+
+            when (resultState.value) {
+                SnackbarResult.ActionPerformed -> {
+                    print("Snackbar action performed")
+                }
+
+                SnackbarResult.Dismissed -> {
+                    print("Snackbar dismissed")
+                }
+
+                else -> {
+                    print("Snackbar unknown")
+                }
+            }
+        }
+        resultState.value
+            ?: SnackbarResult.Dismissed.also { resultState.value = it }
+    }
+
+    LaunchedEffect(Unit) {
+        if (uiTextState.value != null) {
+            showSnackBar(uiTextState.value!!)
+        }
+    }
+
     LaunchedEffect(permissionState) {
 
         if (!permissionState.allPermissionsGranted) {
@@ -159,6 +199,7 @@ fun HomeScreen() {
                 expandBottomSheet = {
 
                 },
+                showSnackbar = showSnackBar,
                 showMessage = {
                     uiTextState.value = UiText.DynamicString(it)
                     print("Message is $it")

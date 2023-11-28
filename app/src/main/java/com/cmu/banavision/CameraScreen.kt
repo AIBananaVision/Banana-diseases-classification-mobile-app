@@ -12,7 +12,6 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
 import androidx.camera.view.LifecycleCameraController
-import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -33,14 +32,10 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,16 +49,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewModelScope
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import com.cmu.banavision.common.UiText
@@ -80,6 +72,7 @@ fun CameraScreen(
     cameraController: LifecycleCameraController,
     permissionGranted: Boolean = rememberSaveable { false },
     expandBottomSheet: () -> Unit,
+    showSnackbar: (UiText) -> SnackbarResult,
     showMessage: (String) -> Unit,
     returnUris: (List<Uri?>) -> Unit
 ) {
@@ -100,6 +93,16 @@ fun CameraScreen(
     val state by viewModel.imageUris.collectAsStateWithLifecycle()
     val locationState by viewModel.locationState.collectAsStateWithLifecycle()
     val soilPropertiesState by soilViewModel.soilProperties.collectAsStateWithLifecycle()
+    val deleleteImageState by viewModel.pendingDeleteImage.collectAsStateWithLifecycle()
+    LaunchedEffect(key1 = deleleteImageState) {
+        if (deleleteImageState != null) {
+            showSnackbar(UiText.DynamicString("Image will be deleted in 5 seconds. Tap to undo.")).also {
+                if (it == SnackbarResult.ActionPerformed) {
+                    viewModel.undoDeleteImage(deleleteImageState!!)
+                }
+            }
+        }
+    }
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->

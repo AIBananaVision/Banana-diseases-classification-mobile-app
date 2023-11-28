@@ -23,9 +23,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (!hasRequiredPermissions()) {
+
             ActivityCompat.requestPermissions(
-                this, CAMERAX_PERMISSIONS, 0
+                this, ALL_PERMISSIONS ,0
             )
+
         }
         setContent {
             BanaVisionTheme {
@@ -40,19 +42,23 @@ class MainActivity : ComponentActivity() {
         }
     }
     private fun hasRequiredPermissions(): Boolean {
-        return CAMERAX_PERMISSIONS.all {
+       // Check all permissions both CAMERAX_PERMISSIONS and LOCATION_PERMISSIONS
+        return ALL_PERMISSIONS.all {
             ContextCompat.checkSelfPermission(
-                applicationContext,
-                it
+                baseContext, it
             ) == PackageManager.PERMISSION_GRANTED
         }
+
     }
 
     companion object {
-        private val CAMERAX_PERMISSIONS = arrayOf(
+        private val ALL_PERMISSIONS = arrayOf(
             Manifest.permission.CAMERA,
             Manifest.permission.RECORD_AUDIO,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
         )
+
     }
 }
 
