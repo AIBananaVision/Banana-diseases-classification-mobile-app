@@ -81,12 +81,12 @@ fun HomeScreen() {
     val showSnackBar: (UiText) -> MutableStateFlow<SnackbarResult?> = { uiText ->
         val resultState = MutableStateFlow<SnackbarResult?>(null)
         coroutineScope.launch {
-            // 5 seconds show
+
             resultState.value = snackbarHostState
                 .showSnackbar(
                     message = uiText.asString(context),
                     actionLabel = "Ok",
-                    duration = SnackbarDuration.Indefinite,
+                    duration = SnackbarDuration.Short,
                 )
             Log.i("Snackbar", "Snackbar result is ${resultState.value}")
 

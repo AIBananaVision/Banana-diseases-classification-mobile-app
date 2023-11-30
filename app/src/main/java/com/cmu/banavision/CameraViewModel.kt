@@ -1,17 +1,21 @@
 package com.cmu.banavision
 
 import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.location.Address
 import android.location.Geocoder
+import android.location.Location
+import android.location.LocationManager
 import android.net.Uri
 import android.util.Log
-import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cmu.banavision.usecases.PictureUseCase
+import com.cmu.banavision.util.LocationData
 import com.cmu.banavision.util.LocationState
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
@@ -38,6 +42,10 @@ class CameraViewModel @Inject constructor(
     val locationState = _locationState.asStateFlow()
     private val _pendingDeleteImage = MutableStateFlow<Uri?>(null)
     val pendingDeleteImage = _pendingDeleteImage.asStateFlow()
+    private val _locationData = MutableStateFlow<LocationData?>(null)
+    val locationData = _locationData.asStateFlow()
+    private lateinit var mFusedLocationClient: FusedLocationProviderClient
+    private val permissionId = 2
 
     fun deleteImage(uri: Uri, context: Context) {
         viewModelScope.launch {
@@ -53,91 +61,128 @@ class CameraViewModel @Inject constructor(
                 pictureUseCase.captureAndSaveImageUseCase.deleteImage(context, uri)
                 _pendingDeleteImage.value = null
             }
+
         }
 
     }
- fun undoDeleteImage(uri: Uri) {
-    viewModelScope.launch {
-        _pendingDeleteImage.value = null
-        _imageUris.update { imageState ->
-            imageState.copy(
-                uris = imageState.uris + uri
-            )
+
+    fun undoDeleteImage(uri: Uri) {
+        viewModelScope.launch {
+            _pendingDeleteImage.value = null
+            _imageUris.update { imageState ->
+                imageState.copy(
+                    uris = imageState.uris + uri
+                )
+            }
         }
     }
-}
 
     fun onTakePhoto(uri: Uri, context: Context) {
+        getLocation(context)
         viewModelScope.launch {
             _imageUris.update { imageState ->
                 imageState.copy(
                     uris = imageState.uris + uri
                 )
             }
-            getLocation(context)
         }
 
     }
 
     fun chooseImageFromGallery(uri: Uri, context: Context) {
+        getLocation(context)
         viewModelScope.launch {
             _imageUris.update { imageState ->
                 imageState.copy(
                     uris = imageState.uris + uri
                 )
             }
-            getLocation(context)
+
         }
 
     }
 
     private fun getLocation(context: Context) {
-        if (ActivityCompat.checkSelfPermission(
-                context,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED &&
-            ActivityCompat.checkSelfPermission(
-                context,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            // Request location permissions
-            ActivityCompat.requestPermissions(
-                context as MainActivity,
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                ),
-                0
-            )
-
-        } else {
-           Log.i( "Location", "Location permission granted")
-            val fusedLocationClient: FusedLocationProviderClient =
-                LocationServices.getFusedLocationProviderClient(context)
-            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-                if (location != null) {
-                    val latitude = location.latitude
-                    val longitude = location.longitude
-
-                    // Get location name
-                    val geocoder = Geocoder(context, Locale.getDefault())
-                    val addresses = geocoder.getFromLocation(latitude, longitude, 1)
-                    val locationName = addresses?.get(0)?.getAddressLine(0)
-                    //Toast location
-                    Toast.makeText(context, "Location is $locationName", Toast.LENGTH_SHORT).show()
-                    _locationState.value = locationState.value.copy(
-                        latitude = latitude,
-                        longitude = longitude,
-                        locationName = locationName
-                    )
+        Log.i("LocationViewModel", "getLocation: called")
+        if (checkPermissions(context)) {
+            Log.i("LocationViewModel", "getLocation: permission granted")
+            if (isLocationEnabled(context)) {
+                Log.i("LocationViewModel", "getLocation: location enabled")
+                if (ActivityCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.ACCESS_FINE_LOCATION
+                    ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    Log.i("LocationViewModel", "getLocation: permission not granted")
+                    return
                 }
-                else {
-                    Log.i("Location", "Location is null")
+                mFusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
+                mFusedLocationClient.lastLocation.addOnCompleteListener { task ->
+                    val location: Location? = task.result
+                    Log.i("LocationViewModel", "getLocation: $location")
+                    if (location != null) {
+                        val geocoder = Geocoder(context, Locale.getDefault())
+                        geocoder.getFromLocation(location.latitude, location.longitude, 1)?.forEach(
+                            fun(address: Address) {
+                                Log.i("LocationViewModel", "getLocation: $address")
+                                _locationData.value = LocationData(
+                                    latitude = location.latitude,
+                                    longitude = location.longitude,
+                                    countryName = address.countryName,
+                                    locality = address.locality,
+                                    address = address.getAddressLine(0)
+                                )
+                            }
+                        )
+
+
+                    }
                 }
+            } else {
+                Log.i("LocationViewModel", "getLocation: location not enabled")
             }
+        } else {
+            requestPermissions(context)
         }
     }
+
+    private fun isLocationEnabled(context: Context): Boolean {
+        val locationManager: LocationManager =
+            context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) || locationManager.isProviderEnabled(
+            LocationManager.NETWORK_PROVIDER
+        )
+    }
+
+    private fun checkPermissions(context: Context): Boolean {
+        if (ActivityCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED &&
+            ActivityCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            return true
+        }
+        return false
+    }
+
+    private fun requestPermissions(context: Context) {
+        ActivityCompat.requestPermissions(
+            context as Activity,
+            arrayOf(
+                Manifest.permission.ACCESS_COARSE_LOCATION,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ),
+            permissionId
+        )
+    }
+
 
     fun bitmapToUri(context: Context, it: Bitmap): Uri {
         return pictureUseCase.captureAndSaveImageUseCase.bitmapToUri(context, it)

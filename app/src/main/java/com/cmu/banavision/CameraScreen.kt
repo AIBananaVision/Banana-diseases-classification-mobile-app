@@ -1,7 +1,10 @@
 package com.cmu.banavision
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Matrix
+import android.location.Address
+import android.location.Geocoder
 import android.net.Uri
 import android.util.Log
 import android.widget.Toast
@@ -24,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material.icons.filled.Photo
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.sharp.Lens
 import androidx.compose.material3.Card
@@ -66,6 +70,7 @@ import com.cmu.banavision.util.getImageNameFromUri
 import com.cmu.banavision.util.getImageSize
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 
 @Composable
@@ -97,7 +102,14 @@ fun CameraScreen(
     val locationState by viewModel.locationState.collectAsStateWithLifecycle()
     val soilPropertiesState by soilViewModel.soilProperties.collectAsStateWithLifecycle()
     val deleleteImageState by viewModel.pendingDeleteImage.collectAsStateWithLifecycle()
+    val locationData by viewModel.locationData.collectAsStateWithLifecycle()
     val viewModelScope = rememberCoroutineScope()
+    LaunchedEffect(key1 = locationData, block ={
+        print("Location data is $locationData")
+        if (locationData != null) {
+           showMessage("Location data is Country: ${locationData?.countryName}, State: ${locationData?.address}, City: ${locationData?.locality}")
+        }
+    } )
     LaunchedEffect(key1 = deleleteImageState) {
         if (deleleteImageState != null) {
             val snackbarResultStateFlow = showSnackbar(UiText.DynamicString("Image will be deleted in 5 seconds. Tap to undo."))
@@ -224,7 +236,7 @@ fun CameraScreen(
                     .width(screenWidth)
             ) {
                 items(state.uris.distinct()) { uri ->
-                    ImagePrevew(
+                    ImagePreview(
                         uri = uri,
                         modifier = Modifier
                             .padding(spacing.spaceSmall)
@@ -259,7 +271,6 @@ fun CameraScreen(
                 verticalAlignment = Alignment.CenterVertically
 
             ) {
-
                 IconButton(onClick = {
                     expandBottomSheet()
                     if (permissionGranted) {
@@ -319,64 +330,51 @@ fun CameraScreen(
 
 }
 
-
 @Composable
-fun ImagePrevew(
+fun ImagePreview(
     uri: Uri?,
     modifier: Modifier = Modifier,
-    context: android.content.Context,
+    context: Context,
     viewModel: CameraViewModel,
 ) {
     val spacing = LocalSpacing.current
+
     if (uri != null) {
         val painter = rememberAsyncImagePainter(
-            ImageRequest
-                .Builder(LocalContext.current)
+            ImageRequest.Builder(LocalContext.current)
                 .data(data = uri)
                 .build()
         )
+
         Row(
             modifier = modifier,
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Spacer(modifier = Modifier.width(spacing.spaceExtraSmall))
-            Card(
+            Box(
                 modifier = Modifier
-                    .padding(spacing.spaceExtraSmall)
-                    .clickable(onClick = { /* Handle image click */ }),
-                shape = RoundedCornerShape(spacing.spaceExtraSmall),
-                elevation = CardDefaults.cardElevation(
-                    defaultElevation = 4.dp,
-                    pressedElevation = 8.dp,
-                    focusedElevation = 8.dp,
-                    hoveredElevation = 8.dp,
-                    draggedElevation = 8.dp,
-                    disabledElevation = 0.dp
-                )
+                    .size(120.dp)
+                    .clip(RoundedCornerShape(spacing.spaceSmall))
+                    .clickable(onClick = { /* Handle image click */ })
+                    .padding(start = spacing.spaceSmall) // Added left margin
             ) {
-                Box(
-                    modifier = Modifier
-                        .width(80.dp)
-                        .height(60.dp)
-                        .clip(RoundedCornerShape(spacing.spaceExtraSmall))
-                ) {
-                    Image(
-                        painter = painter,
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                }
+                Image(
+                    painter = painter,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
             }
+
+            Spacer(modifier = Modifier.width(spacing.spaceSmall))
+
             Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.Center
             ) {
                 Box(
                     modifier = Modifier
                         .padding(spacing.spaceSmall)
-                        .width(120.dp)
+                        .fillMaxWidth()
                 ) {
                     getImageNameFromUri(uri)?.let {
                         Text(
@@ -387,10 +385,11 @@ fun ImagePrevew(
                         )
                     }
                 }
+
                 Box(
                     modifier = Modifier
                         .padding(spacing.spaceSmall)
-                        .width(120.dp)
+                        .fillMaxWidth()
                 ) {
                     Text(
                         text = getImageSize(context.contentResolver, uri),
@@ -402,30 +401,52 @@ fun ImagePrevew(
                 }
             }
 
-
-            Box(
+            Column(
                 modifier = Modifier
-                    .size(spacing.spaceExtraLarge)
-                    .background(MaterialTheme.colorScheme.error, shape = CircleShape)
-                    .padding(spacing.spaceSmall),
-                contentAlignment = Alignment.CenterStart
+                    .padding(spacing.spaceSmall)
+                    .width(60.dp), // Adjust the width of the buttons
+                horizontalAlignment = Alignment.End
             ) {
-                IconButton(onClick = {
-                    viewModel.deleteImage(uri = uri, context = context)
-                }) {
-                    Icon(
-                        Icons.Rounded.Delete,
-                        contentDescription = "Delete",
-                        tint = Color.White
-                    )
+                Box(
+                    modifier = Modifier
+                        .padding(spacing.spaceSmall)
+                        .size(40.dp), // Adjust the size of the buttons
+                    contentAlignment = Alignment.Center
+                ) {
+                    IconButton(onClick = {
+                        // Handle send action here
+                    }) {
+                        Icon(
+                            Icons.Default.Send,
+                            contentDescription = "Send",
+                            tint = Color.White
+                        )
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.error, shape = CircleShape)
+                        .padding(spacing.spaceSmall)
+                        .size(40.dp), // Adjust the size of the buttons
+                    contentAlignment = Alignment.Center
+                ) {
+                    IconButton(onClick = {
+                        viewModel.deleteImage(uri = uri, context = context)
+                    }) {
+                        Icon(
+                            Icons.Rounded.Delete,
+                            contentDescription = "Delete",
+                            tint = Color.White
+                        )
+                    }
                 }
             }
-            Spacer(modifier = Modifier.width(spacing.spaceExtraSmall))
         }
-
-
     }
 }
+
+
 
 private fun takePhoto(
     controller: LifecycleCameraController,
