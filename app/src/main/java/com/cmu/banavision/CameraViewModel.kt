@@ -1,56 +1,81 @@
 package com.cmu.banavision
 
-import android.Manifest
-import android.app.Activity
+import android.annotation.SuppressLint
 import android.app.Application
+import android.content.BroadcastReceiver
 import android.content.Context
-import android.content.pm.PackageManager
+import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Bitmap
-import android.location.Address
-import android.location.Geocoder
-import android.location.Location
-import android.location.LocationManager
 import android.net.Uri
 import android.util.Log
-import androidx.core.app.ActivityCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cmu.banavision.usecases.PictureUseCase
+import com.cmu.banavision.util.LocationAltitutdeAndLongitude
 import com.cmu.banavision.util.LocationData
+import com.cmu.banavision.util.LocationService
 import com.cmu.banavision.util.LocationState
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationServices
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.util.Locale
 import javax.inject.Inject
 
 
+@SuppressLint("UnspecifiedRegisterReceiverFlag")
 @HiltViewModel
 class CameraViewModel @Inject constructor(
     private val pictureUseCase: PictureUseCase,
     application: Application
-    ) : ViewModel() {
+) : ViewModel() {
     // declare context
 
     private val _imageUris = MutableStateFlow(ImagesState())
     val imageUris = _imageUris.asStateFlow()
-    private val _locationState = MutableStateFlow(LocationState())
-    val locationState = _locationState.asStateFlow()
+
     private val _pendingDeleteImage = MutableStateFlow<Uri?>(null)
     val pendingDeleteImage = _pendingDeleteImage.asStateFlow()
     private val _locationData = MutableStateFlow<LocationData?>(null)
     val locationData = _locationData.asStateFlow()
-    private lateinit var mFusedLocationClient: FusedLocationProviderClient
-    private val permissionId = 2
+
+    inner class LocationUpdateReceiver : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val lat = intent.getDoubleExtra("latitude", 0.0)
+            val long = intent.getDoubleExtra("longitude", 0.0)
+            _locationData.value = LocationData(lat, long, "", "", "")
+            Log.d("Location", "Location: ${locationData.value}")
+            // get the location address from the latitude and longitude
+            viewModelScope.launch(Dispatchers.IO) {
+              if(lat != 0.0 && long != 0.0) {
+
+                    _locationData.value = pictureUseCase.captureAndSaveImageUseCase.getAddressFromLocation(
+                        context,
+                        lat,
+                        long
+                    )
+                    Log.d("Location", "Location: ${locationData.value}")
+                }
+                else {
+                    _locationData.value = locationData.value?.copy(
+                        address = "Location not found"
+                    )
+                    Log.d("Location", "Location: ${locationData.value}")
+                }
+            }
+        }
+    }
 init {
     getLocation(application)
+    val filter = IntentFilter("LOCATION_UPDATE")
+    val receiver = LocationUpdateReceiver() // create an instance of LocationUpdateReceiver
+    application.registerReceiver(receiver, filter)
 }
+
     fun deleteImage(uri: Uri, context: Context) {
         viewModelScope.launch {
             _pendingDeleteImage.value = uri
@@ -104,93 +129,41 @@ init {
 
     }
 
-private fun getLocation(context: Context) {
-    viewModelScope.launch(Dispatchers.IO) {
-        while (true) {
-            Log.i("LocationViewModel", "getLocation: called")
-            if (checkPermissions(context)) {
-                Log.i("LocationViewModel", "getLocation: permission granted")
-                if (isLocationEnabled(context)) {
-                    Log.i("LocationViewModel", "getLocation: location enabled")
-                    if (ActivityCompat.checkSelfPermission(
-                            context,
-                            Manifest.permission.ACCESS_FINE_LOCATION
-                        ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
-                            context,
-                            Manifest.permission.ACCESS_COARSE_LOCATION
-                        ) != PackageManager.PERMISSION_GRANTED
-                    ) {
-                        Log.i("LocationViewModel", "getLocation: permission not granted")
-                        return@launch
-                    }
-                    mFusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
-                    mFusedLocationClient.lastLocation.addOnCompleteListener { task ->
-                        val location: Location? = task.result
-                        Log.i("LocationViewModel", "getLocation: $location")
-                        if (location != null) {
-                            val geocoder = Geocoder(context, Locale.getDefault())
-                            geocoder.getFromLocation(location.latitude, location.longitude, 1)?.forEach(
-                                fun(address: Address) {
-                                    Log.i("LocationViewModel", "getLocation: $address")
-                                    _locationData.value = LocationData(
-                                        latitude = location.latitude,
-                                        longitude = location.longitude,
-                                        countryName = address.countryName,
-                                        locality = address.locality,
-                                        address = address.getAddressLine(0)
-                                    )
-                                }
-                            )
-                        }
-                    }
-                } else {
-                    Log.i("LocationViewModel", "getLocation: location not enabled")
-                }
-            } else {
-                requestPermissions(context)
+    fun sendImageAndLocationToModel(uri: Uri) {
+        viewModelScope.launch {
+            _imageUris.update { imageState ->
+                imageState.copy(
+                    uris = imageState.uris + uri
+                )
             }
-            delay(100000) // delay for 10 seconds before the next update
+         Log.e("CameraViewModel Location", "Location: ${locationData.value}")
+
         }
-    }
-}
 
-    private fun isLocationEnabled(context: Context): Boolean {
-        val locationManager: LocationManager =
-            context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-        return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) || locationManager.isProviderEnabled(
-            LocationManager.NETWORK_PROVIDER
-        )
     }
 
-    private fun checkPermissions(context: Context): Boolean {
-        if (ActivityCompat.checkSelfPermission(
-                context,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED &&
-            ActivityCompat.checkSelfPermission(
-                context,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-        ) {
-            return true
-        }
-        return false
+    private fun getLocation(context: Context) {
+
+            Intent(context, LocationService::class.java).apply {
+                action = LocationService.ACTION_START
+                context.startService(this)
+            }
+            _locationData.value = locationData.value?.copy(
+                latitude = LocationAltitutdeAndLongitude.latitude,
+                longitude = LocationAltitutdeAndLongitude.longitude
+            )
+            Log.d("Location", "Location: ${locationData.value}")
+
     }
 
-    private fun requestPermissions(context: Context) {
-        ActivityCompat.requestPermissions(
-            context as Activity,
-            arrayOf(
-                Manifest.permission.ACCESS_COARSE_LOCATION,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ),
-            permissionId
-        )
-    }
 
 
     fun bitmapToUri(context: Context, it: Bitmap): Uri {
         return pictureUseCase.captureAndSaveImageUseCase.bitmapToUri(context, it)
+    }
+    override fun onCleared() {
+        super.onCleared()
+        viewModelScope.cancel()
     }
 
     fun clearImageUris(context: Context) {

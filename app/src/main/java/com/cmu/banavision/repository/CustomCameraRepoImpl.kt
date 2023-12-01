@@ -6,13 +6,14 @@ import android.net.Uri
 import android.provider.MediaStore
 import androidx.core.content.FileProvider
 import com.cmu.banavision.R
+import com.cmu.banavision.util.LocationData
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-class CustomCameraRepoImpl: CustomCameraRepo {
+class CustomCameraRepoImpl : CustomCameraRepo {
 
     override fun bitmapToUri(context: Context, bitmap: Bitmap): Uri {
         val outputDirectory = context.getOutputDirectory()
@@ -41,6 +42,7 @@ class CustomCameraRepoImpl: CustomCameraRepo {
             photoFile
         )
     }
+
     override fun deleteFile(context: Context, uri: Uri): Boolean {
         val filePath = getRealPathFromUri(context, uri)
         if (filePath != null) {
@@ -51,6 +53,37 @@ class CustomCameraRepoImpl: CustomCameraRepo {
         }
         return false
     }
+
+    override fun getAddressFromLocation(
+        context: Context,
+        latitude: Double,
+        longitude: Double
+    ): LocationData {
+        val geocoder = android.location.Geocoder(context, Locale.getDefault())
+        geocoder.getFromLocation(latitude, longitude, 1)?.let { addresses ->
+            if (addresses.isNotEmpty()) {
+                val address = addresses[0]
+                val addressFragments = with(address) {
+                    (0..maxAddressLineIndex).map { getAddressLine(it) }
+                }
+                return LocationData(
+                    latitude,
+                    longitude,
+                    addressFragments.joinToString(separator = "\n"),
+                    address.locality,
+                    address.countryName
+                )
+            }
+        }
+        return LocationData(
+            latitude,
+            longitude,
+            "",
+            "",
+            ""
+        )
+    }
+
 
     private fun getRealPathFromUri(context: Context, uri: Uri): String? {
         // Check if the Uri scheme is "file"
@@ -69,7 +102,7 @@ class CustomCameraRepoImpl: CustomCameraRepo {
                         // Column '_data' exists
                         return cursor.getString(columnIndex)
                     } else {
-                      print(" Not found!")
+                        print(" Not found!")
                     }
                 }
             }
@@ -77,9 +110,6 @@ class CustomCameraRepoImpl: CustomCameraRepo {
 
         return null
     }
-
-
-
 
 
     private fun Context.getOutputDirectory(): File {

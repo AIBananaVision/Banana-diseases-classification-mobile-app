@@ -1,12 +1,10 @@
 package com.cmu.banavision
 
 import android.Manifest
-import android.net.Uri
 import android.os.Build
 import android.util.Log
 import androidx.camera.view.CameraController
 import androidx.camera.view.LifecycleCameraController
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,11 +13,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.rememberScaffoldState
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
@@ -30,27 +26,22 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.rememberAsyncImagePainter
-import coil.request.ImageRequest
 import com.cmu.banavision.common.UiText
 import com.cmu.banavision.ui.theme.LocalSpacing
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
-import kotlin.time.ExperimentalTime
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
@@ -206,42 +197,4 @@ fun HomeScreen() {
 
 }
 
-@Composable
-fun ImagePreview(
-    imageUri: Uri,
-    deleteImage: MutableState<Boolean>,
-    cancel: MutableState<Boolean>,
-    uiTextState: MutableState<UiText?>
-) {
-    val context = LocalContext.current
-    val painter = rememberAsyncImagePainter(
-        ImageRequest
-            .Builder(context)
-            .data(imageUri)
-            .build()
-    )
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        Image(
-            painter = painter,
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop
-        )
-
-        IconButton(
-            onClick = {
-                deleteImage.value = true
-                cancel.value = true
-                uiTextState.value = null
-            },
-            modifier = Modifier.align(Alignment.TopEnd)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Delete,
-                contentDescription = "Delete Image"
-            )
-        }
-    }
-}
 

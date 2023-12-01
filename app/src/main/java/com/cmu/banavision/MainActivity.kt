@@ -1,6 +1,7 @@
 package com.cmu.banavision
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -14,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.cmu.banavision.ui.theme.BanaVisionTheme
+import com.cmu.banavision.util.LocationService
 import com.cmu.banavision.util.NavGraph
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -27,8 +29,8 @@ class MainActivity : ComponentActivity() {
             ActivityCompat.requestPermissions(
                 this, ALL_PERMISSIONS ,0
             )
-
         }
+
         setContent {
             BanaVisionTheme {
                 // A surface container using the 'background' color from the theme
@@ -73,12 +75,19 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onDestroy() {
+        Intent(applicationContext, LocationService::class.java).apply {
+            action = LocationService.ACTION_STOP
+            startService(this)
+        }
+        super.onDestroy()
+    }
     companion object {
         private val ALL_PERMISSIONS = arrayOf(
             Manifest.permission.CAMERA,
             Manifest.permission.RECORD_AUDIO,
+            Manifest.permission.ACCESS_COARSE_LOCATION,
             Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION
         )
 
     }

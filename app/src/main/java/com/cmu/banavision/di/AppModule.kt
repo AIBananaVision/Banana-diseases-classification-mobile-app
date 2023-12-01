@@ -2,6 +2,7 @@ package com.cmu.banavision.di
 
 
 import android.app.Application
+import android.location.LocationProvider
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -9,8 +10,12 @@ import com.cmu.banavision.network.RetrofitClient
 import com.cmu.banavision.network.SoilService
 import com.cmu.banavision.repository.CustomCameraRepo
 import com.cmu.banavision.repository.CustomCameraRepoImpl
+import com.cmu.banavision.repository.LocationClient
 import com.cmu.banavision.usecases.CaptureAndSaveImage
 import com.cmu.banavision.usecases.PictureUseCase
+import com.cmu.banavision.util.DefaultLocationClient
+import com.cmu.banavision.util.LocationService
+import com.google.android.gms.location.LocationServices
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -68,4 +73,15 @@ class AppModule {
         )
     }
 
+
+    @Provides
+    @Singleton
+    fun provideLocationClient(
+        application: Application
+    ): LocationClient {
+        return DefaultLocationClient(
+            application,
+            LocationServices.getFusedLocationProviderClient(application)
+        )
+    }
 }

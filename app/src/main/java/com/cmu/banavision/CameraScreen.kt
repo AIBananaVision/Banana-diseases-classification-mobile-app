@@ -76,7 +76,6 @@ import java.util.Locale
 @Composable
 fun CameraScreen(
     viewModel: CameraViewModel = hiltViewModel(),
-    soilViewModel: SoilViewModel = hiltViewModel(),
     cameraController: LifecycleCameraController,
     permissionGranted: Boolean = rememberSaveable { false },
     expandBottomSheet: () -> Unit,
@@ -95,19 +94,17 @@ fun CameraScreen(
     val screenWidth = configuration.screenWidthDp.dp
     // var previewView: PreviewView
 
-    var message by remember {
-        mutableStateOf("")
-    }
     val state by viewModel.imageUris.collectAsStateWithLifecycle()
-    val locationState by viewModel.locationState.collectAsStateWithLifecycle()
-    val soilPropertiesState by soilViewModel.soilProperties.collectAsStateWithLifecycle()
     val deleleteImageState by viewModel.pendingDeleteImage.collectAsStateWithLifecycle()
     val locationData by viewModel.locationData.collectAsStateWithLifecycle()
     val viewModelScope = rememberCoroutineScope()
     LaunchedEffect(key1 = locationData, block ={
-        print("Location data is $locationData")
+        if (state.uris.isNotEmpty())
         if (locationData != null) {
            showMessage("Location data is Country: ${locationData?.countryName}, State: ${locationData?.address}, City: ${locationData?.locality}")
+            locationData?.longitude?.let {
+
+            }
         }
     } )
     LaunchedEffect(key1 = deleleteImageState) {
@@ -145,32 +142,6 @@ fun CameraScreen(
         }
     }
 
-    // Observe locationState
-    LaunchedEffect(locationState) {
-        print("Location state is $locationState")
-        message = message + "Location state is $locationState"
-        showMessage(message)
-        locationState.longitude?.let {
-            locationState.latitude?.let { it1 ->
-                soilViewModel.getSoilProperties(
-                    longitude = it,
-                    latitude = it1,
-                    properties = listOf("clay", "sand"),
-                    depth = "0-5cm",
-                    values = listOf("mean", "uncertainty")
-                )
-            }
-        }
-    }
-    LaunchedEffect(key1 = soilPropertiesState, block = {
-        print("Soil properties state is $soilPropertiesState")
-        if (soilPropertiesState?.error?.isNotBlank() == true) {
-            message = message + "Soil properties state is ${soilPropertiesState?.error}"
-            showMessage(message)
-        }
-        message = message + "Soil properties state is ${soilPropertiesState?.soilPropertState}"
-        showMessage(message)
-    })
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -306,25 +277,7 @@ fun CameraScreen(
             }
 
         }
-        if (soilPropertiesState?.isLoading == true) {
-            // Show loading indicator
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .padding(spacing.spaceSmall)
-                    .size(20.dp)
-            ) {
-                CircularProgressIndicator(
-                    color = MaterialTheme.colorScheme.primary,
-                    strokeWidth = 2.dp
-                )
-                Text(
-                    text = "Loading...",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
-            }
-        }
+
     }
 
 }
@@ -413,7 +366,7 @@ fun ImagePreview(
                     contentAlignment = Alignment.Center
                 ) {
                     IconButton(onClick = {
-                        // Handle send action here
+                      viewModel.sendImageAndLocationToModel(uri = uri)
                     }) {
                         Icon(
                             Icons.Default.Send,
