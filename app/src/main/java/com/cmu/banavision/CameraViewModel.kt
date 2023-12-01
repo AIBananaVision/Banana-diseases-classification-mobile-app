@@ -2,6 +2,7 @@ package com.cmu.banavision
 
 import android.Manifest
 import android.app.Activity
+import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -20,6 +21,7 @@ import com.cmu.banavision.util.LocationState
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,7 +34,7 @@ import javax.inject.Inject
 @HiltViewModel
 class CameraViewModel @Inject constructor(
     private val pictureUseCase: PictureUseCase,
-
+    application: Application
     ) : ViewModel() {
     // declare context
 
@@ -46,7 +48,9 @@ class CameraViewModel @Inject constructor(
     val locationData = _locationData.asStateFlow()
     private lateinit var mFusedLocationClient: FusedLocationProviderClient
     private val permissionId = 2
-
+init {
+    getLocation(application)
+}
     fun deleteImage(uri: Uri, context: Context) {
         viewModelScope.launch {
             _pendingDeleteImage.value = uri
@@ -77,8 +81,7 @@ class CameraViewModel @Inject constructor(
         }
     }
 
-    fun onTakePhoto(uri: Uri, context: Context) {
-        getLocation(context)
+    fun onTakePhoto(uri: Uri) {
         viewModelScope.launch {
             _imageUris.update { imageState ->
                 imageState.copy(
@@ -89,8 +92,7 @@ class CameraViewModel @Inject constructor(
 
     }
 
-    fun chooseImageFromGallery(uri: Uri, context: Context) {
-        getLocation(context)
+    fun chooseImageFromGallery(uri: Uri) {
         viewModelScope.launch {
             _imageUris.update { imageState ->
                 imageState.copy(
@@ -102,52 +104,55 @@ class CameraViewModel @Inject constructor(
 
     }
 
-    private fun getLocation(context: Context) {
-        Log.i("LocationViewModel", "getLocation: called")
-        if (checkPermissions(context)) {
-            Log.i("LocationViewModel", "getLocation: permission granted")
-            if (isLocationEnabled(context)) {
-                Log.i("LocationViewModel", "getLocation: location enabled")
-                if (ActivityCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.ACCESS_FINE_LOCATION
-                    ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.ACCESS_COARSE_LOCATION
-                    ) != PackageManager.PERMISSION_GRANTED
-                ) {
-                    Log.i("LocationViewModel", "getLocation: permission not granted")
-                    return
-                }
-                mFusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
-                mFusedLocationClient.lastLocation.addOnCompleteListener { task ->
-                    val location: Location? = task.result
-                    Log.i("LocationViewModel", "getLocation: $location")
-                    if (location != null) {
-                        val geocoder = Geocoder(context, Locale.getDefault())
-                        geocoder.getFromLocation(location.latitude, location.longitude, 1)?.forEach(
-                            fun(address: Address) {
-                                Log.i("LocationViewModel", "getLocation: $address")
-                                _locationData.value = LocationData(
-                                    latitude = location.latitude,
-                                    longitude = location.longitude,
-                                    countryName = address.countryName,
-                                    locality = address.locality,
-                                    address = address.getAddressLine(0)
-                                )
-                            }
-                        )
-
-
+private fun getLocation(context: Context) {
+    viewModelScope.launch(Dispatchers.IO) {
+        while (true) {
+            Log.i("LocationViewModel", "getLocation: called")
+            if (checkPermissions(context)) {
+                Log.i("LocationViewModel", "getLocation: permission granted")
+                if (isLocationEnabled(context)) {
+                    Log.i("LocationViewModel", "getLocation: location enabled")
+                    if (ActivityCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.ACCESS_FINE_LOCATION
+                        ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                        ) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        Log.i("LocationViewModel", "getLocation: permission not granted")
+                        return@launch
                     }
+                    mFusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
+                    mFusedLocationClient.lastLocation.addOnCompleteListener { task ->
+                        val location: Location? = task.result
+                        Log.i("LocationViewModel", "getLocation: $location")
+                        if (location != null) {
+                            val geocoder = Geocoder(context, Locale.getDefault())
+                            geocoder.getFromLocation(location.latitude, location.longitude, 1)?.forEach(
+                                fun(address: Address) {
+                                    Log.i("LocationViewModel", "getLocation: $address")
+                                    _locationData.value = LocationData(
+                                        latitude = location.latitude,
+                                        longitude = location.longitude,
+                                        countryName = address.countryName,
+                                        locality = address.locality,
+                                        address = address.getAddressLine(0)
+                                    )
+                                }
+                            )
+                        }
+                    }
+                } else {
+                    Log.i("LocationViewModel", "getLocation: location not enabled")
                 }
             } else {
-                Log.i("LocationViewModel", "getLocation: location not enabled")
+                requestPermissions(context)
             }
-        } else {
-            requestPermissions(context)
+            delay(100000) // delay for 10 seconds before the next update
         }
     }
+}
 
     private fun isLocationEnabled(context: Context): Boolean {
         val locationManager: LocationManager =

@@ -112,7 +112,7 @@ fun CameraScreen(
     } )
     LaunchedEffect(key1 = deleleteImageState) {
         if (deleleteImageState != null) {
-            val snackbarResultStateFlow = showSnackbar(UiText.DynamicString("Image will be deleted in 5 seconds. Tap to undo."))
+            val snackbarResultStateFlow = showSnackbar(UiText.DynamicString("Image will be deleted in few seconds. Tap to undo."))
 
             // Use a CoroutineScope to launch a coroutine for collecting the StateFlow
             viewModelScope.launch {
@@ -141,7 +141,7 @@ fun CameraScreen(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            viewModel.chooseImageFromGallery(uri, context)
+            viewModel.chooseImageFromGallery(uri)
         }
     }
 
@@ -209,8 +209,7 @@ fun CameraScreen(
                                     context = context,
                                     onPhotoTaken = {
                                         viewModel.onTakePhoto(
-                                            uri = viewModel.bitmapToUri(context, it),
-                                            context = context
+                                            uri = viewModel.bitmapToUri(context, it)
                                         )
                                         showCamera.value = false
                                     }
