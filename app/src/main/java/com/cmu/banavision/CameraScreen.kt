@@ -97,19 +97,22 @@ fun CameraScreen(
     val state by viewModel.imageUris.collectAsStateWithLifecycle()
     val deleleteImageState by viewModel.pendingDeleteImage.collectAsStateWithLifecycle()
     val locationData by viewModel.locationData.collectAsStateWithLifecycle()
+    val responseState by viewModel.responseState.collectAsStateWithLifecycle()
     val viewModelScope = rememberCoroutineScope()
-    LaunchedEffect(key1 = locationData, block ={
+    LaunchedEffect(key1 = locationData, block = {
         if (state.uris.isNotEmpty())
-        if (locationData != null) {
-           showMessage("Location data is Country: ${locationData?.countryName}, State: ${locationData?.address}, City: ${locationData?.locality}")
-            locationData?.longitude?.let {
+            if (locationData != null) {
+                showMessage("Location data is Country: ${locationData?.countryName}, State: ${locationData?.address}, City: ${locationData?.locality}")
+                locationData?.longitude?.let {
 
+                }
             }
-        }
-    } )
+    })
+
     LaunchedEffect(key1 = deleleteImageState) {
         if (deleleteImageState != null) {
-            val snackbarResultStateFlow = showSnackbar(UiText.DynamicString("Image will be deleted in few seconds. Tap to undo."))
+            val snackbarResultStateFlow =
+                showSnackbar(UiText.DynamicString("Image will be deleted in few seconds. Tap to undo."))
 
             // Use a CoroutineScope to launch a coroutine for collecting the StateFlow
             viewModelScope.launch {
@@ -290,108 +293,133 @@ fun ImagePreview(
     viewModel: CameraViewModel,
 ) {
     val spacing = LocalSpacing.current
-
+    val responseState by viewModel.responseState.collectAsStateWithLifecycle()
     if (uri != null) {
         val painter = rememberAsyncImagePainter(
             ImageRequest.Builder(LocalContext.current)
                 .data(data = uri)
                 .build()
         )
-
-        Row(
-            modifier = modifier,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(120.dp)
-                    .clip(RoundedCornerShape(spacing.spaceSmall))
-                    .clickable(onClick = { /* Handle image click */ })
-                    .padding(start = spacing.spaceSmall) // Added left margin
+        Box {
+            Row(
+                modifier = modifier,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Image(
-                    painter = painter,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            }
-
-            Spacer(modifier = Modifier.width(spacing.spaceSmall))
-
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.Center
-            ) {
-                Box(
-                    modifier = Modifier
-                        .padding(spacing.spaceSmall)
-                        .fillMaxWidth()
-                ) {
-                    getImageNameFromUri(uri)?.let {
+                if (responseState?.response != null) {
+                    responseState!!.response?.modelResults?.let {
                         Text(
-                            text = it,
-                            maxLines = 1,
+                            text = it.predictedClass,
                             style = MaterialTheme.typography.bodyMedium,
-                            overflow = TextOverflow.Ellipsis
+                            color = MaterialTheme.colorScheme.onSurface,
                         )
                     }
                 }
-
                 Box(
                     modifier = Modifier
-                        .padding(spacing.spaceSmall)
-                        .fillMaxWidth()
+                        .size(120.dp)
+                        .clip(RoundedCornerShape(spacing.spaceSmall))
+                        .clickable(onClick = { /* Handle image click */ })
+                        .padding(start = spacing.spaceSmall) // Added left margin
                 ) {
-                    Text(
-                        text = getImageSize(context.contentResolver, uri),
-                        maxLines = 1,
-                        style = MaterialTheme.typography.bodySmall,
-                        overflow = TextOverflow.Ellipsis,
-                        color = MaterialTheme.colorScheme.outline
+                    Image(
+                        painter = painter,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
                     )
                 }
-            }
 
-            Column(
-                modifier = Modifier
-                    .padding(spacing.spaceSmall)
-                    .width(60.dp), // Adjust the width of the buttons
-                horizontalAlignment = Alignment.End
-            ) {
-                Box(
-                    modifier = Modifier
-                        .padding(spacing.spaceSmall)
-                        .size(40.dp), // Adjust the size of the buttons
-                    contentAlignment = Alignment.Center
+                Spacer(modifier = Modifier.width(spacing.spaceSmall))
+
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    IconButton(onClick = {
-                      viewModel.sendImageAndLocationToModel(uri = uri)
-                    }) {
-                        Icon(
-                            Icons.Default.Send,
-                            contentDescription = "Send",
-                            tint = Color.White
+                    Box(
+                        modifier = Modifier
+                            .padding(spacing.spaceSmall)
+                            .fillMaxWidth()
+                    ) {
+                        getImageNameFromUri(uri)?.let {
+                            Text(
+                                text = it,
+                                maxLines = 1,
+                                style = MaterialTheme.typography.bodyMedium,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .padding(spacing.spaceSmall)
+                            .fillMaxWidth()
+                    ) {
+                        Text(
+                            text = getImageSize(context.contentResolver, uri),
+                            maxLines = 1,
+                            style = MaterialTheme.typography.bodySmall,
+                            overflow = TextOverflow.Ellipsis,
+                            color = MaterialTheme.colorScheme.outline
                         )
                     }
                 }
 
+                Column(
+                    modifier = Modifier
+                        .padding(spacing.spaceSmall)
+                        .width(60.dp), // Adjust the width of the buttons
+                    horizontalAlignment = Alignment.End
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .padding(spacing.spaceSmall)
+                            .size(40.dp), // Adjust the size of the buttons
+                        contentAlignment = Alignment.Center
+                    ) {
+                        IconButton(onClick = {
+                            viewModel.sendImageAndLocationToModel(uri = uri, context)
+                        }) {
+                            Icon(
+                                Icons.Default.Send,
+                                contentDescription = "Send",
+                                tint = Color.White
+                            )
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .background(MaterialTheme.colorScheme.error, shape = CircleShape)
+                            .padding(spacing.spaceSmall)
+                            .size(40.dp), // Adjust the size of the buttons
+                        contentAlignment = Alignment.Center
+                    ) {
+                        IconButton(onClick = {
+                            viewModel.deleteImage(uri = uri, context = context)
+                        }) {
+                            Icon(
+                                Icons.Rounded.Delete,
+                                contentDescription = "Delete",
+                                tint = Color.White
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (responseState?.loading == true) {
                 Box(
                     modifier = Modifier
-                        .background(MaterialTheme.colorScheme.error, shape = CircleShape)
-                        .padding(spacing.spaceSmall)
-                        .size(40.dp), // Adjust the size of the buttons
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.5f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    IconButton(onClick = {
-                        viewModel.deleteImage(uri = uri, context = context)
-                    }) {
-                        Icon(
-                            Icons.Rounded.Delete,
-                            contentDescription = "Delete",
-                            tint = Color.White
-                        )
-                    }
+                    CircularProgressIndicator(
+                        modifier = Modifier
+                            .size(50.dp)
+                            .background(MaterialTheme.colorScheme.surface, shape = CircleShape)
+                    )
                 }
             }
         }

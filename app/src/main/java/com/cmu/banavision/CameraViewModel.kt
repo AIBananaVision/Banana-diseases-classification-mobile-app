@@ -11,11 +11,16 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.cmu.banavision.common.Resource
 import com.cmu.banavision.usecases.PictureUseCase
+import com.cmu.banavision.usecases.UploadUseCase
 import com.cmu.banavision.util.LocationAltitutdeAndLongitude
 import com.cmu.banavision.util.LocationData
 import com.cmu.banavision.util.LocationService
 import com.cmu.banavision.util.LocationState
+import com.cmu.banavision.util.ModelData
+import com.cmu.banavision.util.ResponseState
+import com.cmu.banavision.util.toFile
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
@@ -24,6 +29,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.File
 import javax.inject.Inject
 
 
@@ -31,6 +37,7 @@ import javax.inject.Inject
 @HiltViewModel
 class CameraViewModel @Inject constructor(
     private val pictureUseCase: PictureUseCase,
+    private val uploadUseCase: UploadUseCase,
     application: Application
 ) : ViewModel() {
     // declare context
@@ -42,6 +49,8 @@ class CameraViewModel @Inject constructor(
     val pendingDeleteImage = _pendingDeleteImage.asStateFlow()
     private val _locationData = MutableStateFlow<LocationData?>(null)
     val locationData = _locationData.asStateFlow()
+    private val _responseState = MutableStateFlow<ResponseState?>(null)
+    val responseState = _responseState.asStateFlow()
 
     inner class LocationUpdateReceiver : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -129,14 +138,33 @@ init {
 
     }
 
-    fun sendImageAndLocationToModel(uri: Uri) {
+    fun sendImageAndLocationToModel(uri: Uri, context: Context) {
         viewModelScope.launch {
-            _imageUris.update { imageState ->
-                imageState.copy(
-                    uris = imageState.uris + uri
+            val location = locationData.value
+            if (location != null) {
+                val imageFile: File? = uri?.toFile(context)
+                val modelData = ModelData(
+                    imageFile = imageFile ?: File(""),
+                   locationData = location
                 )
+                when(val results=uploadUseCase(modelData)) {
+                    is Resource.Success-> {
+                        _responseState.value = responseState.value?.copy(
+                            response = results.data
+                        )
+                    }
+                    is Resource.Error -> {
+                        _responseState.value = responseState.value?.copy(
+                            error = results.message
+                        )
+                    }
+                    is Resource.Loading -> {
+                        _responseState.value = responseState.value?.copy(
+                            loading = true
+                        )
+                    }
+                }
             }
-         Log.e("CameraViewModel Location", "Location: ${locationData.value}")
 
         }
 
