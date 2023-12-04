@@ -1,6 +1,6 @@
 package com.cmu.banavision.common
 
 object Constants {
-    const val BASE_URL = "http://172.29.106.219:8080/api/v1/"
+    const val BASE_URL = "https://banana-vision.onrender.com/"
     const val PARAM_ID ="id"
 }
