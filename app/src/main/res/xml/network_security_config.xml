@@ -1,13 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<network-security-config xmlns:tools="http://schemas.android.com/tools">
+<network-security-config>
     <base-config cleartextTrafficPermitted="false">
     </base-config>
-    <domain-config cleartextTrafficPermitted="false">
-        <domain includeSubdomains="true">banana-vision.onrender.com</domain>
-    </domain-config>
-
-    <domain-config cleartextTrafficPermitted="false">
-        <domain includeSubdomains="true">res.cloudinary.com</domain>
-    </domain-config>
 
 </network-security-config>

@@ -51,38 +51,39 @@ class CameraViewModel @Inject constructor(
     val locationData = _locationData.asStateFlow()
     private val _responseState = MutableStateFlow(ResponseState())
     val responseState = _responseState.asStateFlow()
+
     inner class LocationUpdateReceiver : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             val lat = intent.getDoubleExtra("latitude", 0.0)
             val long = intent.getDoubleExtra("longitude", 0.0)
             _locationData.value = LocationData(lat, long, "", "", "")
-            Log.d("Location", "Location: ${locationData.value}")
             // get the location address from the latitude and longitude
             viewModelScope.launch(Dispatchers.IO) {
-              if(lat != 0.0 && long != 0.0) {
+                if (lat != 0.0 && long != 0.0) {
 
-                    _locationData.value = pictureUseCase.captureAndSaveImageUseCase.getAddressFromLocation(
-                        context,
-                        lat,
-                        long
-                    )
-                    Log.d("Location", "Location: ${locationData.value}")
-                }
-                else {
+                    _locationData.value =
+                        pictureUseCase.captureAndSaveImageUseCase.getAddressFromLocation(
+                            context,
+                            lat,
+                            long
+                        )
+
+                } else {
                     _locationData.value = locationData.value?.copy(
                         address = "Location not found"
                     )
-                    Log.d("Location", "Location: ${locationData.value}")
+
                 }
             }
         }
     }
-init {
-    getLocation(application)
-    val filter = IntentFilter("LOCATION_UPDATE")
-    val receiver = LocationUpdateReceiver() // create an instance of LocationUpdateReceiver
-    application.registerReceiver(receiver, filter)
-}
+
+    init {
+        getLocation(application)
+        val filter = IntentFilter("LOCATION_UPDATE")
+        val receiver = LocationUpdateReceiver() // create an instance of LocationUpdateReceiver
+        application.registerReceiver(receiver, filter)
+    }
 
     fun deleteImage(uri: Uri, context: Context) {
         viewModelScope.launch {
@@ -127,7 +128,7 @@ init {
         viewModelScope.launch {
             _imageUri.update { imageState ->
                 imageState.copy(
-                    uri =  uri
+                    uri = uri
                 )
             }
 
@@ -136,40 +137,24 @@ init {
     }
 
     fun sendImageAndLocationToModel(uri: Uri, context: Context) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             val location = locationData.value
             if (location != null) {
                 val imageFile: File? = uri.toFile(context)
                 val modelData = ModelData(
                     imageFile = imageFile ?: File(""),
-                   locationData = location
+                    locationData = location
                 )
-
-                when(val results=uploadUseCase(modelData)) {
-                    is Resource.Success-> {
-                        _responseState.update{ responseState ->
-                            print("Response state: ${responseState?.response}")
-                            Log.d("Response", "Response Gotten: ${results.data}")
-                            responseState.copy(
-                                response = results.data,
-                                uri = uri
-                            )
-
-                        }
-                    }
-                    is Resource.Error -> {
-                        _responseState.update {
-                            responseState ->
-                            responseState.copy(
-                                error = results.message,
-                                uri = uri
-                            )
-
-                        }
-                    }
+                _responseState.update { responseState ->
+                    responseState.copy(
+                        loading = true,
+                        uri = uri
+                    )
+                }
+                when (val results = uploadUseCase(modelData)) {
                     is Resource.Loading -> {
-                        _responseState.update {
-                            responseState ->
+                        Log.i("Response", "Resource is Loading")
+                        _responseState.update { responseState ->
                             responseState.copy(
                                 loading = true,
                                 uri = uri
@@ -177,6 +162,30 @@ init {
 
                         }
                     }
+                    is Resource.Success -> {
+                        _responseState.update { responseState ->
+                            print("Response state: ${responseState.response}")
+                            Log.d("Response", "Response Gotten: ${results.data}")
+                            responseState.copy(
+                                response = results.data,
+                                loading = false,
+                                uri = uri
+                            )
+
+                        }
+                    }
+
+                    is Resource.Error -> {
+                        _responseState.update { responseState ->
+                            responseState.copy(
+                                error = results.message,
+                                loading = false,
+                                uri = uri
+                            )
+
+                        }
+                    }
+
 
                 }
             }
@@ -187,19 +196,20 @@ init {
 
     private fun getLocation(context: Context) {
 
-            Intent(context, LocationService::class.java).apply {
-                action = LocationService.ACTION_START
-                context.startService(this)
-            }
-            _locationData.value = locationData.value?.copy(
-                latitude = LocationAltitutdeAndLongitude.latitude,
-                longitude = LocationAltitutdeAndLongitude.longitude
-            )
+        Intent(context, LocationService::class.java).apply {
+            action = LocationService.ACTION_START
+            context.startService(this)
+        }
+        _locationData.value = locationData.value?.copy(
+            latitude = LocationAltitutdeAndLongitude.latitude,
+            longitude = LocationAltitutdeAndLongitude.longitude
+        )
     }
 
     fun bitmapToUri(context: Context, it: Bitmap): Uri {
         return pictureUseCase.captureAndSaveImageUseCase.bitmapToUri(context, it)
     }
+
     override fun onCleared() {
         super.onCleared()
         viewModelScope.cancel()

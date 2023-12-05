@@ -216,6 +216,7 @@ fun CameraScreen(
                     .background(MaterialTheme.colorScheme.tertiary)
                     .clip(RoundedCornerShape(spacing.spaceLarge)),
                 context = context,
+                showMessage = showMessage,
                 viewModel = viewModel
             )
 
@@ -288,6 +289,7 @@ fun ImagePreview(
     uri: Uri?,
     modifier: Modifier = Modifier,
     context: Context,
+    showMessage: (String) -> Unit,
     viewModel: CameraViewModel,
 ) {
     val spacing = LocalSpacing.current
@@ -295,7 +297,8 @@ fun ImagePreview(
 
     // Display an error toast if there's an error in responseState
     LaunchedEffect(key1 = responseState, block = {
-        if (responseState.error != null) {
+        if (responseState.error != null && responseState.uri == uri){
+            showMessage(responseState.error!!)
             Toast.makeText(context, responseState.error, Toast.LENGTH_LONG).show()
         }
     })
@@ -330,12 +333,15 @@ fun ImagePreview(
 
                     // Loading indicator over the image
                     if (responseState.loading == true && responseState.uri == uri) {
-                        CircularProgressIndicator(
+                        Box(
                             modifier = Modifier
-                                .size(50.dp)
-                                .align(Alignment.Center)
-                                .background(MaterialTheme.colorScheme.onBackground)
-                        )
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.3f))
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.align(Alignment.Center)
+                            )
+                        }
                     }
                 }
 
@@ -346,6 +352,7 @@ fun ImagePreview(
                     verticalArrangement = Arrangement.Center
                 ) {
                     // Display the predicted class
+
                     if (responseState.response != null && responseState.uri == uri) {
                         responseState.response?.modelResults?.let {
                             Text(
@@ -365,8 +372,8 @@ fun ImagePreview(
                     horizontalAlignment = Alignment.End
                 ) {
                     // Send button
-
-                    if (responseState.response == null && responseState.loading == false) {
+                    if(responseState.uri != uri || responseState.response == null)
+                    if ( responseState.loading == false) {
                         Box(
                             modifier = Modifier
                                 .padding(spacing.spaceSmall)
@@ -387,7 +394,6 @@ fun ImagePreview(
                             }
                         }
                     }
-
 
                     // Delete button
                     Box(

@@ -7,8 +7,8 @@ import com.cmu.banavision.network.ApiResponse
 import com.cmu.banavision.network.ErrorInfo
 import com.cmu.banavision.util.ModelData
 import com.google.gson.Gson
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -21,11 +21,11 @@ class UploadDataImpl @Inject constructor(
 ) : UploadDataRepo {
 
 
-    override suspend fun uploadData(modelData: ModelData): Resource<ApiResponse> = withContext(
-        Dispatchers.IO
-    ) {
+    // Assume uploadData is a Flow in your repository
+    override suspend fun uploadData(modelData: ModelData): Flow<Resource<ApiResponse>> = flow {
+        // Emit loading state
+        emit(Resource.Loading())
         try {
-
             val latitude = modelData.locationData.latitude.toString()
             val longitude = modelData.locationData.longitude.toString()
             val countryName = modelData.locationData.countryName
@@ -46,18 +46,20 @@ class UploadDataImpl @Inject constructor(
                 if (response.isSuccessful) {
                     val responseData = response.body()?.string() ?: ""
                     Log.i("UploadDataImpl", "uploadData Response: $responseData")
-                    Resource.Success(Gson().fromJson(responseData, ApiResponse::class.java))
+                    emit(Resource.Success(Gson().fromJson(responseData, ApiResponse::class.java)))
                 } else {
                     handleErrorResponse(response)
                 }
             } catch (e: Exception) {
                 Log.e("UploadDataImpl", "Exception while calling uploadImage", e)
-                Resource.Error(e.message ?: "An error occurred while calling uploadImage")
+                emit(Resource.Error(e.message ?: "An error occurred while calling uploadImage"))
             }
         } catch (e: Exception) {
-            Resource.Error(e.message ?: "An error occurred")
+            emit(Resource.Error(e.message ?: "An error occurred"))
         }
     }
+
+
 
     private fun handleErrorResponse(response: Response<ResponseBody>): Resource<ApiResponse> {
         return try {
