@@ -68,6 +68,7 @@ import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import com.cmu.banavision.common.UiText
 import com.cmu.banavision.ui.theme.LocalSpacing
+import com.cmu.banavision.util.Report
 import com.cmu.banavision.util.getImageNameFromUri
 import com.cmu.banavision.util.getImageSize
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -99,6 +100,7 @@ fun CameraScreen(
     val state by viewModel.imageUri.collectAsStateWithLifecycle()
     val deleleteImageState by viewModel.pendingDeleteImage.collectAsStateWithLifecycle()
     val locationData by viewModel.locationData.collectAsStateWithLifecycle()
+    val responseState by viewModel.responseState.collectAsStateWithLifecycle()
 
     val viewModelScope = rememberCoroutineScope()
 
@@ -219,6 +221,12 @@ fun CameraScreen(
                 showMessage = showMessage,
                 viewModel = viewModel
             )
+            if (responseState.response != null && responseState.uri == state.uri) {
+                responseState.response?.modelResults?.let {
+                    ReportScreen(report = Report(predictedClass = it.predictedClass))
+
+                }
+            }
 
         }
 
@@ -297,7 +305,7 @@ fun ImagePreview(
 
     // Display an error toast if there's an error in responseState
     LaunchedEffect(key1 = responseState, block = {
-        if (responseState.error != null && responseState.uri == uri){
+        if (responseState.error != null && responseState.uri == uri) {
             showMessage(responseState.error!!)
             Toast.makeText(context, responseState.error, Toast.LENGTH_LONG).show()
         }
@@ -352,16 +360,7 @@ fun ImagePreview(
                     verticalArrangement = Arrangement.Center
                 ) {
                     // Display the predicted class
-
-                    if (responseState.response != null && responseState.uri == uri) {
-                        responseState.response?.modelResults?.let {
-                            Text(
-                                text = it.predictedClass,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface,
-                            )
-                        }
-                    }
+                    Spacer(modifier = Modifier.width(spacing.spaceSmall))
                 }
 
                 // Action buttons
@@ -372,28 +371,30 @@ fun ImagePreview(
                     horizontalAlignment = Alignment.End
                 ) {
                     // Send button
-                    if(responseState.uri != uri || responseState.response == null)
-                    if ( responseState.loading == false) {
-                        Box(
-                            modifier = Modifier
-                                .padding(spacing.spaceSmall)
-                                .size(40.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            IconButton(
-                                onClick = {
-                                    viewModel.sendImageAndLocationToModel(uri = uri, context)
-                                },
-                                enabled = responseState.response != null || responseState.loading == false
+                    if (responseState.uri != uri || responseState.response == null)
+                        if (responseState.loading == false) {
+                            Box(
+                                modifier = Modifier
+                                    .padding(spacing.spaceSmall)
+                                    .size(40.dp),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    Icons.Default.Send,
-                                    contentDescription = "Send",
-                                    tint = Color.White
-                                )
+                                IconButton(
+                                    onClick = {
+                                        viewModel.sendImageAndLocationToModel(uri = uri, context)
+                                    },
+                                    enabled = responseState.response != null || responseState.loading == false
+                                ) {
+                                    Icon(
+                                        Icons.Default.Send,
+                                        contentDescription = "Send",
+                                        tint = Color.White
+                                    )
+                                }
+
                             }
+
                         }
-                    }
 
                     // Delete button
                     Box(
@@ -417,6 +418,7 @@ fun ImagePreview(
                     }
                 }
             }
+
         }
     }
 }
@@ -502,8 +504,56 @@ fun CameraControl(
             )
         }
     }
-
-
 }
+
+@Composable
+fun ReportScreen(report: Report) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp)
+            .background(MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Classification Result:",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = if (report.predictedClass == "HEALTHY") report.predictedClass else "DISEASED: ${report.predictedClass}",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (report.predictedClass == "HEALTHY") MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            if (report.recommendations.isNotEmpty()) {
+                Text(
+                    text = "Recommendations:",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                LazyColumn {
+                    items(report.recommendations) { recommendation ->
+                        Text(
+                            text = recommendation,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+
 
 
