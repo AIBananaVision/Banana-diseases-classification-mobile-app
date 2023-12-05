@@ -42,16 +42,15 @@ class CameraViewModel @Inject constructor(
 ) : ViewModel() {
     // declare context
 
-    private val _imageUris = MutableStateFlow(ImagesState())
-    val imageUris = _imageUris.asStateFlow()
+    private val _imageUri = MutableStateFlow(ImagesState())
+    val imageUri = _imageUri.asStateFlow()
 
     private val _pendingDeleteImage = MutableStateFlow<Uri?>(null)
     val pendingDeleteImage = _pendingDeleteImage.asStateFlow()
     private val _locationData = MutableStateFlow<LocationData?>(null)
     val locationData = _locationData.asStateFlow()
-    private val _responseState = MutableStateFlow<ResponseState?>(null)
+    private val _responseState = MutableStateFlow(ResponseState())
     val responseState = _responseState.asStateFlow()
-
     inner class LocationUpdateReceiver : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             val lat = intent.getDoubleExtra("latitude", 0.0)
@@ -88,9 +87,9 @@ init {
     fun deleteImage(uri: Uri, context: Context) {
         viewModelScope.launch {
             _pendingDeleteImage.value = uri
-            _imageUris.update { imageState ->
+            _imageUri.update { imageState ->
                 imageState.copy(
-                    uris = imageState.uris - uri
+                    uri = null
                 )
             }
             // delete image in 5 seconds when undo is not clicked
@@ -99,17 +98,15 @@ init {
                 pictureUseCase.captureAndSaveImageUseCase.deleteImage(context, uri)
                 _pendingDeleteImage.value = null
             }
-
         }
-
     }
 
     fun undoDeleteImage(uri: Uri) {
         viewModelScope.launch {
             _pendingDeleteImage.value = null
-            _imageUris.update { imageState ->
+            _imageUri.update { imageState ->
                 imageState.copy(
-                    uris = imageState.uris + uri
+                    uri = uri
                 )
             }
         }
@@ -117,9 +114,9 @@ init {
 
     fun onTakePhoto(uri: Uri) {
         viewModelScope.launch {
-            _imageUris.update { imageState ->
+            _imageUri.update { imageState ->
                 imageState.copy(
-                    uris = imageState.uris + uri
+                    uri = uri
                 )
             }
         }
@@ -128,9 +125,9 @@ init {
 
     fun chooseImageFromGallery(uri: Uri) {
         viewModelScope.launch {
-            _imageUris.update { imageState ->
+            _imageUri.update { imageState ->
                 imageState.copy(
-                    uris = imageState.uris + uri
+                    uri =  uri
                 )
             }
 
@@ -150,19 +147,35 @@ init {
 
                 when(val results=uploadUseCase(modelData)) {
                     is Resource.Success-> {
-                        _responseState.value = responseState.value?.copy(
-                            response = results.data
-                        )
+                        _responseState.update{ responseState ->
+                            print("Response state: ${responseState?.response}")
+                            Log.d("Response", "Response Gotten: ${results.data}")
+                            responseState.copy(
+                                response = results.data,
+                                uri = uri
+                            )
+
+                        }
                     }
                     is Resource.Error -> {
-                        _responseState.value = responseState.value?.copy(
-                            error = results.message
-                        )
+                        _responseState.update {
+                            responseState ->
+                            responseState.copy(
+                                error = results.message,
+                                uri = uri
+                            )
+
+                        }
                     }
                     is Resource.Loading -> {
-                        _responseState.value = responseState.value?.copy(
-                            loading = true
-                        )
+                        _responseState.update {
+                            responseState ->
+                            responseState.copy(
+                                loading = true,
+                                uri = uri
+                            )
+
+                        }
                     }
 
                 }
@@ -182,11 +195,7 @@ init {
                 latitude = LocationAltitutdeAndLongitude.latitude,
                 longitude = LocationAltitutdeAndLongitude.longitude
             )
-            Log.d("Location", "Location: ${locationData.value}")
-
     }
-
-
 
     fun bitmapToUri(context: Context, it: Bitmap): Uri {
         return pictureUseCase.captureAndSaveImageUseCase.bitmapToUri(context, it)
@@ -196,20 +205,4 @@ init {
         viewModelScope.cancel()
     }
 
-    fun clearImageUris(context: Context) {
-        viewModelScope.launch {
-            _imageUris.value.uris.forEach {
-                if (it != null) {
-                    pictureUseCase.captureAndSaveImageUseCase.deleteImage(context, it)
-                    _pendingDeleteImage.value = it
-                }
-            }
-            _imageUris.update { imageState ->
-                imageState.copy(
-                    uris = emptyList()
-                )
-            }
-        }
-
-    }
 }

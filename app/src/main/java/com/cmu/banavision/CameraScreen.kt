@@ -19,6 +19,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -52,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -81,7 +83,7 @@ fun CameraScreen(
     expandBottomSheet: () -> Unit,
     showSnackbar: (UiText) -> MutableStateFlow<SnackbarResult?>,
     showMessage: (String) -> Unit,
-    returnUris: (List<Uri?>) -> Unit
+    returnUri: (Uri?) -> Unit
 ) {
     val spacing = LocalSpacing.current
     val showCamera = remember {
@@ -94,20 +96,15 @@ fun CameraScreen(
     val screenWidth = configuration.screenWidthDp.dp
     // var previewView: PreviewView
 
-    val state by viewModel.imageUris.collectAsStateWithLifecycle()
+    val state by viewModel.imageUri.collectAsStateWithLifecycle()
     val deleleteImageState by viewModel.pendingDeleteImage.collectAsStateWithLifecycle()
     val locationData by viewModel.locationData.collectAsStateWithLifecycle()
 
     val viewModelScope = rememberCoroutineScope()
-    val responseState by viewModel.responseState.collectAsStateWithLifecycle()
-    LaunchedEffect(key1 = responseState, block ={
-        Log.d("CameraScreen", "Response -> is ${responseState?.response?.modelResults?.predictedClass}")
-        if (responseState != null){
-            Log.d("CameraScreen", "Response -> is ${responseState?.response?.modelResults?.predictedClass}")
-        }
-    } )
+
+
     LaunchedEffect(key1 = locationData, block = {
-        if (state.uris.isNotEmpty())
+        if (state.uri != null)
             if (locationData != null) {
                 showMessage("Location data is Country: ${locationData?.countryName}, State: ${locationData?.address}, City: ${locationData?.locality}")
                 locationData?.longitude?.let {
@@ -203,32 +200,25 @@ fun CameraScreen(
                 }
             }
         }
-        returnUris(state.uris)
-        if (state.uris.isEmpty()) {
+        returnUri(state.uri)
+        if (state.uri == null) {
             Text(
                 text = "No images yet",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
         } else {
-            LazyColumn(
+            ImagePreview(
+                uri = state.uri,
                 modifier = Modifier
-                    .height(screeHeight * 0.45f)
-                    .width(screenWidth)
-            ) {
-                items(state.uris.distinct()) { uri ->
-                    ImagePreview(
-                        uri = uri,
-                        modifier = Modifier
-                            .padding(spacing.spaceSmall)
-                            .fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.tertiary)
-                            .clip(RoundedCornerShape(spacing.spaceLarge)),
-                        context = context,
-                        viewModel = viewModel
-                    )
-                }
-            }
+                    .padding(spacing.spaceSmall)
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.tertiary)
+                    .clip(RoundedCornerShape(spacing.spaceLarge)),
+                context = context,
+                viewModel = viewModel
+            )
+
         }
 
 
@@ -302,39 +292,33 @@ fun ImagePreview(
 ) {
     val spacing = LocalSpacing.current
     val responseState by viewModel.responseState.collectAsStateWithLifecycle()
-    LaunchedEffect(key1 = responseState, block ={
-        Log.d("CameraScreen", "Response:ImagePreview -> is ${responseState?.response?.modelResults?.predictedClass}")
-        if (responseState != null){
-            Log.d("CameraScreen", "Response:ImagePreview -> is ${responseState?.response?.modelResults?.predictedClass}")
+
+    // Display an error toast if there's an error in responseState
+    LaunchedEffect(key1 = responseState, block = {
+        if (responseState.error != null) {
+            Toast.makeText(context, responseState.error, Toast.LENGTH_LONG).show()
         }
-    } )
+    })
+
     if (uri != null) {
         val painter = rememberAsyncImagePainter(
             ImageRequest.Builder(LocalContext.current)
                 .data(data = uri)
                 .build()
         )
-        Box {
+        Box(
+            modifier = modifier,
+            contentAlignment = Alignment.Center
+        ) {
             Row(
                 modifier = modifier,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (responseState?.response != null) {
-                    responseState!!.response?.modelResults?.let {
-                        Text(
-                            text = it.predictedClass,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                    }
-                }
+                // Image with a frame
                 Box(
                     modifier = Modifier
-                        .size(120.dp)
+                        .size(150.dp)
                         .clip(RoundedCornerShape(spacing.spaceSmall))
-                        .clickable(onClick = {
-                            viewModel.sendImageAndLocationToModel(uri = uri, context)
-                        })
                         .padding(start = spacing.spaceSmall)
                 ) {
                     Image(
@@ -343,6 +327,16 @@ fun ImagePreview(
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
+
+                    // Loading indicator over the image
+                    if (responseState.loading == true && responseState.uri == uri) {
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .size(50.dp)
+                                .align(Alignment.Center)
+                                .background(MaterialTheme.colorScheme.onBackground)
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.width(spacing.spaceSmall))
@@ -351,69 +345,63 @@ fun ImagePreview(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.Center
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .padding(spacing.spaceSmall)
-                            .fillMaxWidth()
-                    ) {
-                        getImageNameFromUri(uri)?.let {
+                    // Display the predicted class
+                    if (responseState.response != null && responseState.uri == uri) {
+                        responseState.response?.modelResults?.let {
                             Text(
-                                text = it,
-                                maxLines = 1,
-                                style = MaterialTheme.typography.bodyMedium,
-                                overflow = TextOverflow.Ellipsis
+                                text = it.predictedClass,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface,
                             )
                         }
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .padding(spacing.spaceSmall)
-                            .fillMaxWidth()
-                    ) {
-                        Text(
-                            text = getImageSize(context.contentResolver, uri),
-                            maxLines = 1,
-                            style = MaterialTheme.typography.bodySmall,
-                            overflow = TextOverflow.Ellipsis,
-                            color = MaterialTheme.colorScheme.outline
-                        )
                     }
                 }
 
+                // Action buttons
                 Column(
                     modifier = Modifier
                         .padding(spacing.spaceSmall)
-                        .width(60.dp), // Adjust the width of the buttons
+                        .width(60.dp),
                     horizontalAlignment = Alignment.End
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .padding(spacing.spaceSmall)
-                            .size(40.dp), // Adjust the size of the buttons
-                        contentAlignment = Alignment.Center
-                    ) {
-                        IconButton(onClick = {
-                            viewModel.sendImageAndLocationToModel(uri = uri, context)
-                        }) {
-                            Icon(
-                                Icons.Default.Send,
-                                contentDescription = "Send",
-                                tint = Color.White
-                            )
+                    // Send button
+
+                    if (responseState.response == null && responseState.loading == false) {
+                        Box(
+                            modifier = Modifier
+                                .padding(spacing.spaceSmall)
+                                .size(40.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    viewModel.sendImageAndLocationToModel(uri = uri, context)
+                                },
+                                enabled = responseState.response != null || responseState.loading == false
+                            ) {
+                                Icon(
+                                    Icons.Default.Send,
+                                    contentDescription = "Send",
+                                    tint = Color.White
+                                )
+                            }
                         }
                     }
 
+
+                    // Delete button
                     Box(
                         modifier = Modifier
                             .background(MaterialTheme.colorScheme.error, shape = CircleShape)
                             .padding(spacing.spaceSmall)
-                            .size(40.dp), // Adjust the size of the buttons
+                            .size(40.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        IconButton(onClick = {
-                            viewModel.deleteImage(uri = uri, context = context)
-                        }) {
+                        IconButton(
+                            onClick = {
+                                viewModel.deleteImage(uri = uri, context = context)
+                            }
+                        ) {
                             Icon(
                                 Icons.Rounded.Delete,
                                 contentDescription = "Delete",
@@ -423,25 +411,9 @@ fun ImagePreview(
                     }
                 }
             }
-
-            if (responseState?.loading == true) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.5f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier
-                            .size(50.dp)
-                            .background(MaterialTheme.colorScheme.surface, shape = CircleShape)
-                    )
-                }
-            }
         }
     }
 }
-
 
 
 private fun takePhoto(
