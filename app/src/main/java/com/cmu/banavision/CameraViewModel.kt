@@ -142,11 +142,12 @@ init {
         viewModelScope.launch {
             val location = locationData.value
             if (location != null) {
-                val imageFile: File? = uri?.toFile(context)
+                val imageFile: File? = uri.toFile(context)
                 val modelData = ModelData(
                     imageFile = imageFile ?: File(""),
                    locationData = location
                 )
+
                 when(val results=uploadUseCase(modelData)) {
                     is Resource.Success-> {
                         _responseState.value = responseState.value?.copy(
@@ -163,6 +164,7 @@ init {
                             loading = true
                         )
                     }
+
                 }
             }
 

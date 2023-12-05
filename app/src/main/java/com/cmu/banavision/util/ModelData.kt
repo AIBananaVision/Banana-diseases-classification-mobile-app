@@ -10,7 +10,7 @@ data class ModelData(
     val imageFile: File
 ){
     fun createImageRequestBody(): MultipartBody.Part {
-        val requestFile = imageFile.asRequestBody("image/*".toMediaTypeOrNull())
-        return MultipartBody.Part.createFormData("image", imageFile.name, requestFile)
+        val imageRequestBody = imageFile.asRequestBody("image/*".toMediaTypeOrNull())
+        return MultipartBody.Part.createFormData("image_file", imageFile.name, imageRequestBody)
     }
 }

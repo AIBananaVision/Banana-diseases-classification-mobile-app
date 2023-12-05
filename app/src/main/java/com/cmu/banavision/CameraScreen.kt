@@ -97,8 +97,15 @@ fun CameraScreen(
     val state by viewModel.imageUris.collectAsStateWithLifecycle()
     val deleleteImageState by viewModel.pendingDeleteImage.collectAsStateWithLifecycle()
     val locationData by viewModel.locationData.collectAsStateWithLifecycle()
-    val responseState by viewModel.responseState.collectAsStateWithLifecycle()
+
     val viewModelScope = rememberCoroutineScope()
+    val responseState by viewModel.responseState.collectAsStateWithLifecycle()
+    LaunchedEffect(key1 = responseState, block ={
+        Log.d("CameraScreen", "Response -> is ${responseState?.response?.modelResults?.predictedClass}")
+        if (responseState != null){
+            Log.d("CameraScreen", "Response -> is ${responseState?.response?.modelResults?.predictedClass}")
+        }
+    } )
     LaunchedEffect(key1 = locationData, block = {
         if (state.uris.isNotEmpty())
             if (locationData != null) {
@@ -108,6 +115,7 @@ fun CameraScreen(
                 }
             }
     })
+
 
     LaunchedEffect(key1 = deleleteImageState) {
         if (deleleteImageState != null) {
@@ -294,6 +302,12 @@ fun ImagePreview(
 ) {
     val spacing = LocalSpacing.current
     val responseState by viewModel.responseState.collectAsStateWithLifecycle()
+    LaunchedEffect(key1 = responseState, block ={
+        Log.d("CameraScreen", "Response:ImagePreview -> is ${responseState?.response?.modelResults?.predictedClass}")
+        if (responseState != null){
+            Log.d("CameraScreen", "Response:ImagePreview -> is ${responseState?.response?.modelResults?.predictedClass}")
+        }
+    } )
     if (uri != null) {
         val painter = rememberAsyncImagePainter(
             ImageRequest.Builder(LocalContext.current)
@@ -318,8 +332,10 @@ fun ImagePreview(
                     modifier = Modifier
                         .size(120.dp)
                         .clip(RoundedCornerShape(spacing.spaceSmall))
-                        .clickable(onClick = { /* Handle image click */ })
-                        .padding(start = spacing.spaceSmall) // Added left margin
+                        .clickable(onClick = {
+                            viewModel.sendImageAndLocationToModel(uri = uri, context)
+                        })
+                        .padding(start = spacing.spaceSmall)
                 ) {
                     Image(
                         painter = painter,
