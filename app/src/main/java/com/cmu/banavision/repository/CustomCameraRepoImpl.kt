@@ -66,12 +66,13 @@ class CustomCameraRepoImpl : CustomCameraRepo {
                 val addressFragments = with(address) {
                     (0..maxAddressLineIndex).map { getAddressLine(it) }
                 }
+                val userAddress = addressFragments.joinToString(separator = "\n")
                 return LocationData(
-                    latitude,
-                    longitude,
-                    addressFragments.joinToString(separator = "\n"),
-                    address.locality,
-                    address.countryName
+                   latitude= latitude,
+                    longitude = longitude,
+                    address=userAddress,
+                    locality = address.locality,
+                    countryName = address.countryName
                 )
             }
         }

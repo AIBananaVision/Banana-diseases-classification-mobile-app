@@ -17,7 +17,6 @@ import com.cmu.banavision.usecases.UploadUseCase
 import com.cmu.banavision.util.LocationAltitutdeAndLongitude
 import com.cmu.banavision.util.LocationData
 import com.cmu.banavision.util.LocationService
-import com.cmu.banavision.util.LocationState
 import com.cmu.banavision.util.ModelData
 import com.cmu.banavision.util.ResponseState
 import com.cmu.banavision.util.toFile
@@ -44,7 +43,8 @@ class CameraViewModel @Inject constructor(
 
     private val _imageUri = MutableStateFlow(ImagesState())
     val imageUri = _imageUri.asStateFlow()
-
+    private val _showCameraOptions = MutableStateFlow(false)
+    val showCameraOptions = _showCameraOptions.asStateFlow()
     private val _pendingDeleteImage = MutableStateFlow<Uri?>(null)
     val pendingDeleteImage = _pendingDeleteImage.asStateFlow()
     private val _locationData = MutableStateFlow<LocationData?>(null)
@@ -122,6 +122,13 @@ class CameraViewModel @Inject constructor(
             }
         }
 
+    }
+    fun changeShowCameraOptions(){
+        viewModelScope.launch {
+            _showCameraOptions.update { showCameraOptions ->
+                showCameraOptions.not()
+            }
+        }
     }
 
     fun chooseImageFromGallery(uri: Uri) {

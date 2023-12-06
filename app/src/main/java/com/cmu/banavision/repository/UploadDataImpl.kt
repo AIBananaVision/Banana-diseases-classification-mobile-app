@@ -37,9 +37,9 @@ class UploadDataImpl @Inject constructor(
                 val response = apiService.uploadImage(
                     latitude = latitude,
                     longitude = longitude,
-                    countryName = countryName,
-                    locality = locality,
                     address = address,
+                    locality = locality,
+                    countryName = countryName,
                     image_file = imagePart
                 )
 

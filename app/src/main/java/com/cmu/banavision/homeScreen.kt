@@ -36,6 +36,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.cmu.banavision.common.UiText
 import com.cmu.banavision.ui.theme.LocalSpacing
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -45,7 +46,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
-fun HomeScreen() {
+fun HomeScreen( viewModel: CameraViewModel = hiltViewModel()) {
     val snackbarHostState = remember {
         SnackbarHostState()
     }
@@ -57,7 +58,6 @@ fun HomeScreen() {
     }
 
     val coroutineScope = rememberCoroutineScope()
-
     val permissions = if (Build.VERSION.SDK_INT <= 28) {
         listOf(
             Manifest.permission.CAMERA,
@@ -127,7 +127,7 @@ fun HomeScreen() {
         floatingActionButton = {
             FloatingActionButton(
                 onClick = {
-
+                    viewModel.changeShowCameraOptions()
                 },
                 containerColor = MaterialTheme.colorScheme.primary,
                 shape = CircleShape
@@ -178,9 +178,6 @@ fun HomeScreen() {
             CameraScreen(
                 cameraController = controller,
                 permissionGranted = permissionState.allPermissionsGranted,
-                expandBottomSheet = {
-
-                },
                 showSnackbar = showSnackBar,
                 showMessage = {
                     uiTextState.value = UiText.DynamicString(it)

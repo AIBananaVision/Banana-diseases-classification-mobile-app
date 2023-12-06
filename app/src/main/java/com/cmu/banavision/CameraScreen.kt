@@ -25,20 +25,28 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.BottomSheetState
+import androidx.compose.material.BottomSheetValue
+import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.sharp.Lens
+import androidx.compose.material.rememberBottomSheetState
+import androidx.compose.material3.BottomSheetScaffold
+import androidx.compose.material3.BottomSheetScaffoldState
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
@@ -76,12 +84,12 @@ import kotlinx.coroutines.launch
 import java.util.Locale
 
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
 fun CameraScreen(
     viewModel: CameraViewModel = hiltViewModel(),
     cameraController: LifecycleCameraController,
     permissionGranted: Boolean = rememberSaveable { false },
-    expandBottomSheet: () -> Unit,
     showSnackbar: (UiText) -> MutableStateFlow<SnackbarResult?>,
     showMessage: (String) -> Unit,
     returnUri: (Uri?) -> Unit
@@ -101,9 +109,29 @@ fun CameraScreen(
     val deleleteImageState by viewModel.pendingDeleteImage.collectAsStateWithLifecycle()
     val locationData by viewModel.locationData.collectAsStateWithLifecycle()
     val responseState by viewModel.responseState.collectAsStateWithLifecycle()
-
+    val showCameraOptions by viewModel.showCameraOptions.collectAsStateWithLifecycle()
     val viewModelScope = rememberCoroutineScope()
 
+    val bottomSheetState: BottomSheetScaffoldState = rememberBottomSheetScaffoldState()
+    LaunchedEffect(key1 = showCameraOptions, block = {
+        Log.d("CameraScreen", "showCameraOptions is $showCameraOptions")
+        if (showCameraOptions) {
+            Log.d("CameraScreen", "showCameraOptions is true")
+            viewModelScope.launch {
+                bottomSheetState.bottomSheetState.expand()
+            }
+        }
+        else{
+            Log.d("CameraScreen", "showCameraOptions is false")
+
+            if (bottomSheetState.bottomSheetState.isVisible) {
+                viewModelScope.launch {
+                    Log.e("bottomSheetState", "bottomSheetState is visible")
+                }
+
+            }
+        }
+    })
 
     LaunchedEffect(key1 = locationData, block = {
         if (state.uri != null)
@@ -151,145 +179,149 @@ fun CameraScreen(
             viewModel.chooseImageFromGallery(uri)
         }
     }
-
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        if (showCamera.value) {
-            if (permissionGranted) {
-                Box(
+    BottomSheetScaffold(
+        scaffoldState = bottomSheetState,
+        sheetPeekHeight = 0.dp,
+        sheetContent = {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = spacing.spaceMedium, horizontal = spacing.spaceSmall),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
                     modifier = Modifier
-                        .height(screeHeight * 0.85f)
-                        .width(screenWidth)
-                ) {
-                    CameraPreview(
-                        controller = cameraController,
-                        modifier = Modifier
-                            .fillMaxSize()
-                    )
-                    Column(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.Bottom
-                    ) {
+                        .padding(vertical = spacing.spaceMedium, horizontal = spacing.spaceSmall)
+                        .width(120.dp)
+                        .clip(RoundedCornerShape(size = spacing.spaceExtraSmall))
+                        .background(Color.Transparent)
+                        .border(
+                            1.dp,
+                            MaterialTheme.colorScheme.secondary,
+                            RoundedCornerShape(size = spacing.spaceSmall)
+                        ),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
 
-                        CameraControl(
-                            Icons.Sharp.Lens,
-                            R.string.icn_camera_view_camera_shutter_content_description,
-                            modifier = Modifier
-                                .size(64.dp)
-                                .padding(1.dp)
-                                .border(1.dp, Color.White, CircleShape),
-                            cameraController = cameraController,
-                            onClick = {
-                                takePhoto(
-                                    controller = cameraController,
-                                    context = context,
-                                    onPhotoTaken = {
-                                        viewModel.onTakePhoto(
-                                            uri = viewModel.bitmapToUri(context, it)
-                                        )
-                                        showCamera.value = false
-                                    }
-                                )
-                            }
+                ) {
+                    IconButton(onClick = {
+                        if (permissionGranted) {
+                            showCamera.value = true
+                            viewModel.changeShowCameraOptions()
+                        } else {
+                            Toast.makeText(
+                                context,
+                                "Please accept permission in app settings",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }) {
+
+                        Icon(
+                            painter =
+                            painterResource(id = R.drawable.camera),
+                            contentDescription = "",
+                            modifier = Modifier.size(45.dp),
+                            tint = Color.Magenta
+                        )
+
+                    }
+                    IconButton(onClick = {
+                        viewModel.changeShowCameraOptions()
+                        galleryLauncher.launch("image/*")
+                    }) {
+                        Icon(
+                            imageVector = Icons.Default.Photo,
+                            contentDescription = "Open gallery",
+                            modifier = Modifier.size(45.dp),
+                            tint = Color.Magenta
                         )
                     }
-
                 }
+
             }
         }
-        returnUri(state.uri)
-        if (state.uri == null) {
-            Text(
-                text = "No images yet",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        } else {
-            ImagePreview(
-                uri = state.uri,
-                modifier = Modifier
-                    .padding(spacing.spaceSmall)
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.tertiary)
-                    .clip(RoundedCornerShape(spacing.spaceLarge)),
-                context = context,
-                showMessage = showMessage,
-                viewModel = viewModel
-            )
-            if (responseState.response != null && responseState.uri == state.uri) {
-                responseState.response?.modelResults?.let {
-                    ReportScreen(report = Report(predictedClass = it.predictedClass))
-
-                }
-            }
-
-        }
-
-
-        Box(
-            modifier = Modifier
-                .height(screeHeight * 0.15f),
-            contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Row(
-                modifier = Modifier
-                    .padding(vertical = spacing.spaceMedium, horizontal = spacing.spaceSmall)
-                    .width(120.dp)
-                    .clip(RoundedCornerShape(size = spacing.spaceExtraSmall))
-                    .background(Color.Transparent)
-                    .border(
-                        1.dp,
-                        MaterialTheme.colorScheme.secondary,
-                        RoundedCornerShape(size = spacing.spaceSmall)
-                    ),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
+            if (showCamera.value) {
+                if (permissionGranted) {
+                    Box(
+                        modifier = Modifier
+                            .height(screeHeight * 0.85f)
+                            .width(screenWidth)
+                    ) {
+                        CameraPreview(
+                            controller = cameraController,
+                            modifier = Modifier
+                                .fillMaxSize()
+                        )
+                        Column(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.Bottom
+                        ) {
 
-            ) {
-                IconButton(onClick = {
-                    expandBottomSheet()
-                    if (permissionGranted) {
-                        showCamera.value = true
-                    } else {
-                        Toast.makeText(
-                            context,
-                            "Please accept permission in app settings",
-                            Toast.LENGTH_LONG
-                        ).show()
+                            CameraControl(
+                                Icons.Sharp.Lens,
+                                R.string.icn_camera_view_camera_shutter_content_description,
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .padding(1.dp)
+                                    .border(1.dp, Color.White, CircleShape),
+                                cameraController = cameraController,
+                                onClick = {
+                                    takePhoto(
+                                        controller = cameraController,
+                                        context = context,
+                                        onPhotoTaken = {
+                                            viewModel.onTakePhoto(
+                                                uri = viewModel.bitmapToUri(context, it)
+                                            )
+                                            showCamera.value = false
+                                        }
+                                    )
+                                }
+                            )
+                        }
+
                     }
-                }) {
-
-                    Icon(
-                        painter =
-                        painterResource(id = R.drawable.camera),
-                        contentDescription = "",
-                        modifier = Modifier.size(45.dp),
-                        tint = Color.Magenta
-                    )
-
-                }
-                IconButton(onClick = {
-                    galleryLauncher.launch("image/*")
-                }) {
-
-                    Icon(
-                        imageVector = Icons.Default.Photo,
-                        contentDescription = "Open gallery",
-                        modifier = Modifier.size(45.dp),
-                        tint = Color.Magenta
-                    )
                 }
             }
+            returnUri(state.uri)
+            if (state.uri == null) {
+                Text(
+                    text = "No images yet",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            } else {
+                ImagePreview(
+                    uri = state.uri,
+                    modifier = Modifier
+                        .padding(spacing.spaceSmall)
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.tertiary)
+                        .clip(RoundedCornerShape(spacing.spaceLarge)),
+                    context = context,
+                    showMessage = showMessage,
+                    viewModel = viewModel
+                )
+                if (responseState.response != null && responseState.uri == state.uri) {
+                    responseState.response?.modelResults?.let {
+                        ReportScreen(report = Report(predictedClass = it.predictedClass))
+
+                    }
+                }
+
+            }
+
 
         }
-
     }
-
 }
 
 @Composable
@@ -310,7 +342,6 @@ fun ImagePreview(
             Toast.makeText(context, responseState.error, Toast.LENGTH_LONG).show()
         }
     })
-
     if (uri != null) {
         val painter = rememberAsyncImagePainter(
             ImageRequest.Builder(LocalContext.current)
